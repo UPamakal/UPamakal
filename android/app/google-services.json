@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "216383462965",
+    "project_id": "upamakal",
+    "storage_bucket": "upamakal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:216383462965:android:1bdcabfbc9ecd4f44b9b7c",
+        "android_client_info": {
+          "package_name": "com.example.upamakal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6k5tDtnI25yJ9C4T21aWCYBn0GxTZzHI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
