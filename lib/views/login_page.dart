@@ -28,6 +28,9 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+  bool _isHoveringRegister = false;
+  bool _isHoveringForgot = false;
+  bool _isHoveringBack = false;
   @override
   void dispose() {
     _emailController.dispose();
@@ -87,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ---- Logo & branding -----------------------------------
-                  const LogoWidget(size: 72),
+                  const LogoWidget(size: 150),
                   const SizedBox(height: 16),
                   Text(
                     'Welcome back!',
@@ -98,7 +101,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Sign in to continue',
+                    'Log in to continue',
                     style: TextStyle(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
@@ -146,19 +149,29 @@ class _LoginPageState extends State<LoginPage> {
                   // ---- Forgot password link -------------------------------
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const ForgotPasswordPage(),
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _isHoveringForgot = true),
+                      onExit: (_) => setState(() => _isHoveringForgot = false),
+                      cursor: SystemMouseCursors.click,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordPage(),
+                            ),
+                          );
+                        },
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 150),
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w500,
+                            decoration: _isHoveringForgot
+                                ? TextDecoration.underline
+                                : TextDecoration.none,
+                            decorationThickness: 2.0,
                           ),
-                        );
-                      },
-                      child: const Text(
-                        'Request Password Reset',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
+                          child: const Text('Forgot Password'),
                         ),
                       ),
                     ),
@@ -222,19 +235,29 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text("Don't have an account yet? "),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const SignUpPage(),
+                      MouseRegion(
+                        onEnter: (_) => setState(() => _isHoveringRegister = true),
+                        onExit: (_) => setState(() => _isHoveringRegister = false),
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const SignUpPage(),
+                              ),
+                            );
+                          },
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 150),
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              decoration: _isHoveringRegister
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                              decorationThickness: 2.0,
                             ),
-                          );
-                        },
-                        child: const Text(
-                          'Register',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                            child: const Text('Register'),
                           ),
                         ),
                       ),
@@ -242,15 +265,27 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 16),
                   // ---- Back to home link ----------------------------------
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const LandingPage()),
-                      );
-                    },
-                    child: const Text(
-                      'Back to home page',
-                      style: TextStyle(color: AppColors.textSecondary),
+                  MouseRegion(
+                    onEnter: (_) => setState(() => _isHoveringBack = true),
+                    onExit: (_) => setState(() => _isHoveringBack = false),
+                    cursor: SystemMouseCursors.click,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const LandingPage()),
+                        );
+                      },
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 150),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          decoration: _isHoveringBack
+                              ? TextDecoration.underline
+                              : TextDecoration.none,
+                          decorationThickness: 2.0,
+                        ),
+                        child: const Text('Back to home page'),
+                      ),
                     ),
                   ),
                 ],
@@ -268,22 +303,11 @@ class _GoogleIcon extends StatelessWidget {
   const _GoogleIcon();
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Image.asset(
+      'assets/images/google.png',
       width: 20,
       height: 20,
-      decoration: BoxDecoration(
-        color: AppColors.googleBlue,
-        borderRadius: BorderRadius.circular(2),
-      ),
-      alignment: Alignment.center,
-      child: const Text(
-        'G',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-        ),
-      ),
+      fit: BoxFit.contain,
     );
   }
 }
