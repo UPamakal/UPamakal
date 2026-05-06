@@ -6,6 +6,7 @@ import '../widgets/logo_widget.dart';
 import '../widgets/auth_text_field.dart';
 import 'signup_page.dart';
 import 'forgot_password_page.dart';
+import 'home_page.dart';
 import 'landing_page.dart';
 
 /// --------------------------------------------------------------------------
@@ -40,24 +41,56 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Validates the form and triggers email/password sign-in.
   Future<void> _handleEmailLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-    final authVM = context.read<AuthViewModel>();
-    final success = await authVM.signInWithEmailPassword(
-      email: _emailController.text,
-      password: _passwordController.text,
-    );
-    if (!success && mounted) {
-      _showError(authVM.errorMessage ?? 'Login failed.');
+    print("🔐 LOGIN BUTTON PRESSED (Email/Password)");
+
+    if (!_formKey.currentState!.validate()) {
+      print("❌ Form validation failed");
+      return;
     }
-    // On success, the AuthGate in app.dart reacts to isAuthenticated = true
-    // and automatically navigates to HomePage — no manual navigation needed.
+
+    final authVM = context.read<AuthViewModel>();
+
+    try {
+      print("⏳ Attempting sign-in...");
+
+      final success = await authVM.signInWithEmailPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      print("📊 Login result: $success");
+
+      if (!success && mounted) {
+        print("❌ Login failed: ${authVM.errorMessage}");
+        _showError(authVM.errorMessage ?? 'Login failed.');
+      }
+
+      if (success && mounted) {
+        print("✅ Login successful - navigating to HomePage");
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (_) => false,
+        );
+      }
+    } catch (e) {
+      print("🔥 Exception during login: $e");
+      if (mounted) {
+        _showError('Something went wrong during login.');
+      }
+    }
   }
 
   /// Triggers Google Sign-In.
   Future<void> _handleGoogleLogin() async {
     final authVM = context.read<AuthViewModel>();
     final success = await authVM.signInWithGoogle();
-    if (!success && mounted) {
+
+    if (success && mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (_) => false,
+      );
+    } else if (!success && mounted) {
       _showError(authVM.errorMessage ?? 'Google sign-in failed.');
     }
   }

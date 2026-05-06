@@ -2,50 +2,39 @@ import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 
-/// --------------------------------------------------------------------------
-/// AuthViewModel
-/// --------------------------------------------------------------------------
-/// ViewModel (MVVM) that mediates between the authentication UI and
-/// the [AuthService].  It holds all mutable UI state (loading flags,
-/// error messages, current user) and notifies listeners via
-/// [ChangeNotifier] so the view rebuilds reactively.
-///
-/// Key responsibilities:
-///   - Expose the current [UserModel] and a convenient [isAuthenticated]
-///     getter for the View layer.
-///   - Accept user actions (sign up, sign in, Google sign-in, reset
-///     password, sign out) and delegate to [AuthService].
-///   - Translate [Exception]s into human-readable error messages stored
-///     in [errorMessage].
-/// --------------------------------------------------------------------------
 class AuthViewModel extends ChangeNotifier {
   final AuthService _authService;
-  // ---- Observable state ---------------------------------------------------
+
   UserModel? _user;
   bool _isLoading = false;
   String? _errorMessage;
+
   AuthViewModel({required AuthService authService})
-    : _authService = authService {
-    // Listen to Firebase auth state changes and keep local state in sync
+      : _authService = authService {
+    
+    // Listen to Firebase auth state changes
     _authService.authStateChanges.listen((user) {
       _user = user;
-      _errorMessage = null; // clear any stale error on state change
+      _errorMessage = null;
       notifyListeners();
+
+      debugPrint("🔄 Auth state changed: ${user?.email ?? 'NULL'}");
     });
   }
-  // ---- Public getters -----------------------------------------------------
+
+  // ---------------- Getters ----------------
   UserModel? get user => _user;
   bool get isAuthenticated => _user != null;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  /// Clears the error message so the UI can dismiss error banners.
+  // ---------------- Error reset ----------------
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
-  // ---- Email / Password Sign-Up -------------------------------------------
+  // ---------------- Email Sign Up ----------------
   Future<bool> signUpWithEmailPassword({
     required String email,
     required String password,
@@ -58,7 +47,7 @@ class AuthViewModel extends ChangeNotifier {
     });
   }
 
-  // ---- Email / Password Sign-In -------------------------------------------
+  // ---------------- Email Sign In ----------------
   Future<bool> signInWithEmailPassword({
     required String email,
     required String password,
@@ -71,44 +60,42 @@ class AuthViewModel extends ChangeNotifier {
     });
   }
 
-  // ---- Google Sign-In -----------------------------------------------------
+  // ---------------- Google Sign In ----------------
   Future<bool> signInWithGoogle() async {
     return _runWithLoading(() async {
       await _authService.signInWithGoogle();
     });
   }
 
-  // ---- Password Reset -----------------------------------------------------
+  // ---------------- Password Reset ----------------
   Future<bool> sendPasswordResetEmail({required String email}) async {
     return _runWithLoading(() async {
       await _authService.sendPasswordResetEmail(email: email);
     });
   }
 
-  // ---- Sign Out -----------------------------------------------------------
+  // ---------------- Sign Out ----------------
   Future<void> signOut() async {
     await _runWithLoading(() async {
       await _authService.signOut();
+
+      _user = null;
+      notifyListeners();
     });
   }
 
-  // ---- Internal helper ----------------------------------------------------
-  /// Wraps an async operation with standard loading/error handling.
-  /// - Sets _isLoading = true before execution.
-  /// - Catches any [Exception], stores a user-friendly message in
-  ///   [_errorMessage], and returns false to indicate failure.
-  /// - Returns true on success.
-  /// - Always calls [notifyListeners] so the UI reacts to state changes.
+  // ---------------- Loading wrapper ----------------
   Future<bool> _runWithLoading(Future<void> Function() operation) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
+
     try {
       await operation();
-      _errorMessage = null;
       return true;
     } catch (e) {
       _errorMessage = _parseFirebaseError(e);
+      debugPrint("🔥 Auth error: $e");
       return false;
     } finally {
       _isLoading = false;
@@ -116,39 +103,32 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Maps raw Firebase / generic exceptions to human-readable strings
-  /// suitable for display in SnackBars or error labels.
+  // ---------------- Error parser ----------------
   String _parseFirebaseError(dynamic error) {
     final message = error.toString().toLowerCase();
-    if (message.contains('network-request-failed') ||
-        message.contains('network_error')) {
-      return 'No internet connection. Please check your network and try again.';
+
+    if (message.contains('network')) {
+      return 'No internet connection.';
     }
-    if (message.contains('user-not-found') ||
-        message.contains('no user found')) {
-      return 'No account found with this email address.';
+    if (message.contains('user-not-found')) {
+      return 'No account found.';
     }
-    if (message.contains('wrong-password') ||
-        message.contains('invalid password')) {
-      return 'Incorrect password. Please try again.';
+    if (message.contains('wrong-password')) {
+      return 'Incorrect password.';
     }
-    if (message.contains('invalid-email') || message.contains('malformed')) {
-      return 'Please enter a valid email address.';
+    if (message.contains('invalid-email')) {
+      return 'Invalid email address.';
     }
-    if (message.contains('email-already-in-use') ||
-        message.contains('already exists')) {
-      return 'An account with this email already exists.';
+    if (message.contains('email-already-in-use')) {
+      return 'Email already exists.';
     }
     if (message.contains('weak-password')) {
-      return 'Password is too weak. Please use at least 6 characters.';
-    }
-    if (message.contains('cancelled')) {
-      return 'Sign-in was cancelled.';
+      return 'Weak password.';
     }
     if (message.contains('too-many-requests')) {
-      return 'Too many attempts. Please wait a moment and try again.';
+      return 'Too many attempts. Try again later.';
     }
-    // Generic fallback
-    return 'Something went wrong. Please try again later.';
+
+    return 'Something went wrong.';
   }
 }
