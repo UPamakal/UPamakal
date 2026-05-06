@@ -11,28 +11,37 @@ dependencies:
     sdk: flutter
 
   # Icons for iOS-style widgets
-  cupertino_icons: ^1.0.8
-
-  # Firebase core — foundation for all Firebase services
-  # Adjusted to ^3.10.1 to be compatible with firebase_auth ^5.x
-  firebase_core: ^3.10.1
-
-  # Firebase Authentication — email/password + OAuth providers
-  firebase_auth: ^5.5.2
-
-  # Google Sign-In — native Google OAuth flow
-  google_sign_in: ^6.3.0
-
-  # SharedPreferences — lightweight key-value store for first-launch flag
-  shared_preferences: ^2.3.5
-
-  # Provider — lightweight state management for MVVM architecture
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+  cloud_firestore: ^5.5.0
+  firebase_storage: ^12.3.6
+  
+  # Google Sign In
+  google_sign_in: ^6.2.2
+  
+  # Image Picker
+  image_picker: ^1.1.2
+  
+  # Storage
+  shared_preferences: ^2.3.2
+  
+  # State Management
   provider: ^6.1.2
+
+  cloudinary_public: ^0.23.1
+  http: ^1.2.0
+  dio: ^5.4.0
+
+  flutter_dotenv: ^5.1.0
+  envied: ^0.5.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+  build_runner: ^2.4.0
+  envied_generator: ^0.5.3
 
 flutter:
   uses-material-design: true
@@ -40,3 +49,4 @@ flutter:
   # Assets directory for logo and future images
   assets:
     - assets/images/
+    - .env

@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 /// --------------------------------------------------------------------------
 /// LandingViewModel
 /// --------------------------------------------------------------------------
@@ -23,7 +22,6 @@ class LandingViewModel extends ChangeNotifier {
   LandingViewModel() {
     _init();
   }
-
   /// Reads the persisted flag asynchronously on construction.
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -31,11 +29,9 @@ class LandingViewModel extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
-
   // ---- Public getters -----------------------------------------------------
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isLoading => _isLoading;
-
   /// Call this after the user finishes the landing experience (e.g.
   /// taps "Get Started").  Persists the flag so the landing page never
   /// shows again.

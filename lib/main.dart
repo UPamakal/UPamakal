@@ -1,22 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'app.dart';
 import 'view_models/auth_view_model.dart';
-import 'view_models/landing_view_model.dart'; // <-- required import
+import 'view_models/landing_view_model.dart';
+import 'view_models/home_view_model.dart';
 import 'services/auth_service.dart';
+import 'services/listing_service.dart';
+import 'services/cloudinary_service.dart';
 
-/// --------------------------------------------------------------------------
-/// UPamakal — Entry Point
-/// --------------------------------------------------------------------------
-/// Initializes Firebase, sets up both ViewModels using MultiProvider,
-/// then launches the root App widget.
-/// --------------------------------------------------------------------------
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Initialize Cloudinary
+  await CloudinaryService.initialize();
+  
   final authService = AuthService();
+  final listingService = ListingService();
+  
   runApp(
     MultiProvider(
       providers: [
@@ -24,8 +35,10 @@ void main() async {
           create: (context) => AuthViewModel(authService: authService),
         ),
         ChangeNotifierProvider<LandingViewModel>(
-          create: (context) =>
-              LandingViewModel(),
+          create: (context) => LandingViewModel(),
+        ),
+        ChangeNotifierProvider<HomeViewModel>(
+          create: (context) => HomeViewModel(listingService: listingService),
         ),
       ],
       child: const UpamakalApp(),
