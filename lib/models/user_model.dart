@@ -21,12 +21,17 @@ class UserModel {
 
   /// Whether the email has been verified
   final bool emailVerified;
+
+  /// FCM Token for push notifications
+  final String? fcmToken;
+
   const UserModel({
     required this.uid,
     this.email,
     this.displayName,
     this.photoURL,
     this.emailVerified = false,
+    this.fcmToken,
   });
 
   /// Factory constructor that maps a Firebase [User] (from firebase_auth)
@@ -40,6 +45,30 @@ class UserModel {
       photoURL: firebaseUser.photoURL,
       emailVerified: firebaseUser.emailVerified,
     );
+  }
+
+  /// Factory constructor for creating a user from Firestore document
+  factory UserModel.fromFirestore(Map<String, dynamic> data) {
+    return UserModel(
+      uid: data['uid'] ?? '',
+      email: data['email'],
+      displayName: data['displayName'],
+      photoURL: data['photoURL'],
+      emailVerified: data['emailVerified'] ?? false,
+      fcmToken: data['fcmToken'],
+    );
+  }
+
+  /// Convert UserModel to Firestore document
+  Map<String, dynamic> toFirestore() {
+    return {
+      'uid': uid,
+      'email': email,
+      'displayName': displayName,
+      'photoURL': photoURL,
+      'emailVerified': emailVerified,
+      'fcmToken': fcmToken,
+    };
   }
 
   /// Returns true

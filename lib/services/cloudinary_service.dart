@@ -20,25 +20,25 @@ class CloudinaryService {
     _uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'];
     
     if (kDebugMode) {
-      print('🔍 Cloudinary Debug:');
-      print('   Cloud Name: ${_cloudName ?? "NOT FOUND"}');
-      print('   Upload Preset: ${_uploadPreset ?? "NOT FOUND"}');
+      debugPrint('🔍 Cloudinary Debug:');
+      debugPrint('   Cloud Name: ${_cloudName ?? "NOT FOUND"}');
+      debugPrint('   Upload Preset: ${_uploadPreset ?? "NOT FOUND"}');
     }
     
     if (_cloudName == null || _cloudName!.isEmpty) {
       if (kDebugMode) {
-        print('⚠️ Warning: Cloudinary cloud name not found in .env file');
-        print('Please ensure .env file contains:');
-        print('CLOUDINARY_CLOUD_NAME=your_cloud_name');
+        debugPrint('⚠️ Warning: Cloudinary cloud name not found in .env file');
+        debugPrint('Please ensure .env file contains:');
+        debugPrint('CLOUDINARY_CLOUD_NAME=your_cloud_name');
       }
       return;
     }
     
     if (_uploadPreset == null || _uploadPreset!.isEmpty) {
       if (kDebugMode) {
-        print('⚠️ Warning: Cloudinary upload preset not found in .env file');
-        print('Please ensure .env file contains:');
-        print('CLOUDINARY_UPLOAD_PRESET=your_upload_preset');
+        debugPrint('⚠️ Warning: Cloudinary upload preset not found in .env file');
+        debugPrint('Please ensure .env file contains:');
+        debugPrint('CLOUDINARY_UPLOAD_PRESET=your_upload_preset');
       }
       return;
     }
@@ -46,9 +46,9 @@ class CloudinaryService {
     _isInitialized = true;
     
     if (kDebugMode) {
-      print('✅ Cloudinary initialized successfully!');
-      print('   Cloud Name: $_cloudName');
-      print('   Upload Preset: $_uploadPreset');
+      debugPrint('✅ Cloudinary initialized successfully!');
+      debugPrint('   Cloud Name: $_cloudName');
+      debugPrint('   Upload Preset: $_uploadPreset');
     }
   }
   
@@ -63,11 +63,9 @@ class CloudinaryService {
       maxWidth: 1024,
     );
 
-    if (pickedFiles != null) {
-      images.addAll(pickedFiles.take(maxCount));
-      if (kDebugMode) {
-        print('📸 Picked ${images.length} images');
-      }
+    images.addAll(pickedFiles.take(maxCount));
+    if (kDebugMode) {
+      debugPrint('📸 Picked ${images.length} images');
     }
 
     return images;
@@ -82,7 +80,7 @@ class CloudinaryService {
     );
     
     if (kDebugMode && pickedFile != null) {
-      print('📸 Picked single image: ${pickedFile.path}');
+      debugPrint('📸 Picked single image: ${pickedFile.path}');
     }
     
     return pickedFile;
@@ -95,9 +93,9 @@ class CloudinaryService {
   }) async {
     if (!isConfigured) {
       if (kDebugMode) {
-        print('❌ Cloudinary not configured. Please check your .env file');
-        print('   Cloud Name: $_cloudName');
-        print('   Upload Preset: $_uploadPreset');
+        debugPrint('❌ Cloudinary not configured. Please check your .env file');
+        debugPrint('   Cloud Name: $_cloudName');
+        debugPrint('   Upload Preset: $_uploadPreset');
       }
       return null;
     }
@@ -107,7 +105,9 @@ class CloudinaryService {
       
       // Check if file exists
       if (!await file.exists()) {
-        print('❌ Image file does not exist: ${image.path}');
+        if (kDebugMode) {
+          debugPrint('❌ Image file does not exist: ${image.path}');
+        }
         return null;
       }
       
@@ -115,9 +115,9 @@ class CloudinaryService {
       final fileSize = bytes.length / 1024; // Size in KB
       
       if (kDebugMode) {
-        print('📤 Uploading image:');
-        print('   File size: ${fileSize.toStringAsFixed(2)} KB');
-        print('   Folder: $folder');
+        debugPrint('📤 Uploading image:');
+        debugPrint('   File size: ${fileSize.toStringAsFixed(2)} KB');
+        debugPrint('   Folder: $folder');
       }
       
       // Create multipart request
@@ -152,21 +152,21 @@ class CloudinaryService {
       if (response.statusCode == 200 && jsonResponse['secure_url'] != null) {
         final imageUrl = jsonResponse['secure_url'];
         if (kDebugMode) {
-          print('✅ Image uploaded successfully!');
-          print('   URL: $imageUrl');
+          debugPrint('✅ Image uploaded successfully!');
+          debugPrint('   URL: $imageUrl');
         }
         return imageUrl;
       } else {
         if (kDebugMode) {
-          print('❌ Cloudinary upload failed:');
-          print('   Status code: ${response.statusCode}');
-          print('   Error: ${jsonResponse['error']?['message'] ?? jsonResponse}');
+          debugPrint('❌ Cloudinary upload failed:');
+          debugPrint('   Status code: ${response.statusCode}');
+          debugPrint('   Error: ${jsonResponse['error']?['message'] ?? jsonResponse}');
         }
         return null;
       }
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Error uploading to Cloudinary: $e');
+        debugPrint('❌ Error uploading to Cloudinary: $e');
       }
       return null;
     }
@@ -179,7 +179,7 @@ class CloudinaryService {
     String? listingId,
   }) async {
     if (!isConfigured) {
-      print('❌ Cannot upload multiple images: Cloudinary not configured');
+      debugPrint('❌ Cannot upload multiple images: Cloudinary not configured');
       return [];
     }
     
@@ -189,7 +189,7 @@ class CloudinaryService {
     for (int i = 0; i < images.length; i++) {
       final image = images[i];
       if (kDebugMode) {
-        print('📤 Uploading image ${i + 1}/${images.length}...');
+        debugPrint('📤 Uploading image ${i + 1}/${images.length}...');
       }
       
       final imageUrl = await uploadImage(
@@ -204,7 +204,7 @@ class CloudinaryService {
     }
     
     if (kDebugMode) {
-      print('✅ Upload complete: $successCount/${images.length} images uploaded');
+      debugPrint('✅ Upload complete: $successCount/${images.length} images uploaded');
     }
     
     return imageUrls;

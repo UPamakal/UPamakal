@@ -393,7 +393,7 @@ class _CreateListingPageContentState extends State<_CreateListingPageContent> {
 
   Widget _buildCategoryDropdown(CreateListingViewModel viewModel) {
     return DropdownButtonFormField<String>(
-      value: viewModel.selectedCategory,
+      initialValue: viewModel.selectedCategory,
       hint: const Text(
         'Select...',
         style: TextStyle(color: Colors.grey, fontSize: 14),

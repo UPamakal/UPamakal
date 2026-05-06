@@ -6,6 +6,8 @@ import '../view_models/home_view_model.dart';
 import '../models/user_model.dart';
 import '../models/listing_model.dart';
 import 'create_listing_page.dart';
+import 'chat_list_page.dart';
+import 'listing_detail_page.dart';
 
 /// --------------------------------------------------------------------------
 /// HomePage - Marketplace Listings
@@ -297,104 +299,6 @@ class HomePage extends StatelessWidget {
   }
 
   // -------------------------------------------------------------------------
-  // Search bar
-  // -------------------------------------------------------------------------
-
-  Widget _buildSearchBar(BuildContext context, HomeViewModel homeVM) {
-    final controller = TextEditingController(text: homeVM.searchQuery);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Row(
-        children: [
-          // Search field
-          Expanded(
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: controller,
-                onChanged: (value) => homeVM.setSearchQuery(value),
-                decoration: InputDecoration(
-                  hintText: 'Search books, gadgets...',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: AppColors.textSecondary,
-                    size: 20,
-                  ),
-                  suffixIcon: homeVM.isSearching
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.clear,
-                            color: AppColors.textSecondary,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            controller.clear();
-                            homeVM.clearSearch();
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Filter button
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Filters coming soon!'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 1),
-                  ),
-                );
-              },
-              icon: const Icon(
-                Icons.tune,
-                color: AppColors.textSecondary,
-                size: 22,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // -------------------------------------------------------------------------
   // Categories section
   // -------------------------------------------------------------------------
 
@@ -612,7 +516,14 @@ class HomePage extends StatelessWidget {
   HomeViewModel homeVM,
 ) {
   return GestureDetector(
-    onTap: () => homeVM.onListingTap(listing),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ListingDetailPage(listing: listing),
+        ),
+      );
+    },
     child: Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -824,6 +735,14 @@ class HomePage extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
+        if (index == 2) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatListPage()),
+          );
+          return;
+        }
+        
         homeVM.setSelectedTab(index);
         if (index != 0) {
           ScaffoldMessenger.of(context).showSnackBar(
