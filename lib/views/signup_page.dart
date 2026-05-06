@@ -4,7 +4,6 @@ import '../utils/constants.dart';
 import '../view_models/auth_view_model.dart';
 import '../widgets/logo_widget.dart';
 import '../widgets/auth_text_field.dart';
-import 'forgot_password_page.dart';
 import 'landing_page.dart';
 import 'login_page.dart';
 
@@ -29,9 +28,13 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  bool _isHoveringLogin = false;
+  bool _isHoveringBack = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
   bool _agreedToTerms = false;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -40,7 +43,6 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  /// Validates the form and registers the user with email + password.
   Future<void> _handleEmailSignUp() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
@@ -53,7 +55,6 @@ class _SignUpPageState extends State<SignUpPage> {
       password: _passwordController.text,
     );
     if (success && mounted) {
-      // Show a success message and navigate back to login
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -64,15 +65,14 @@ class _SignUpPageState extends State<SignUpPage> {
           duration: const Duration(seconds: 4),
         ),
       );
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
     } else if (mounted) {
       _showError(authVM.errorMessage ?? 'Registration failed.');
     }
   }
 
-  /// Triggers Google Sign-In as a registration shortcut.
   Future<void> _handleGoogleSignUp() async {
     if (!_agreedToTerms) {
       _showError('Please agree to the Terms of Service and Privacy Policy.');
@@ -83,7 +83,6 @@ class _SignUpPageState extends State<SignUpPage> {
     if (!success && mounted) {
       _showError(authVM.errorMessage ?? 'Google sign-in failed.');
     }
-    // On success, AuthGate auto-navigates to HomePage.
   }
 
   void _showError(String message) {
@@ -114,13 +113,13 @@ class _SignUpPageState extends State<SignUpPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ---- Logo & branding -----------------------------------
-                  const LogoWidget(size: 64),
+                  const LogoWidget(size: 150),
                   const SizedBox(height: 16),
                   Text(
                     'Create an Account',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                          fontWeight: FontWeight.w700,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
@@ -130,6 +129,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppConstants.sectionSpacing + 4),
+
                   // ---- Email field ----------------------------------------
                   AuthTextField(
                     controller: _emailController,
@@ -149,6 +149,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     },
                   ),
                   const SizedBox(height: 14),
+
                   // ---- Password field -------------------------------------
                   AuthTextField(
                     controller: _passwordController,
@@ -170,6 +171,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     },
                   ),
                   const SizedBox(height: 14),
+
                   // ---- Confirm Password field -----------------------------
                   AuthTextField(
                     controller: _confirmPasswordController,
@@ -178,10 +180,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     isPassword: true,
                     isPasswordVisible: _confirmPasswordVisible,
                     onTogglePassword: () {
-                      setState(
-                        () =>
-                            _confirmPasswordVisible = !_confirmPasswordVisible,
-                      );
+                      setState(() => _confirmPasswordVisible = !_confirmPasswordVisible);
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -194,6 +193,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     },
                   ),
                   const SizedBox(height: 16),
+
                   // ---- Terms of Service checkbox --------------------------
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -241,6 +241,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
+
                   // ---- Register button ------------------------------------
                   ElevatedButton(
                     onPressed: authVM.isLoading ? null : _handleEmailSignUp,
@@ -256,6 +257,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         : const Text('Register'),
                   ),
                   const SizedBox(height: 16),
+
                   // ---- Divider with "or" ----------------------------------
                   Row(
                     children: [
@@ -274,6 +276,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
+
                   // ---- Google Sign-Up button ------------------------------
                   OutlinedButton.icon(
                     onPressed: authVM.isLoading ? null : _handleGoogleSignUp,
@@ -294,59 +297,65 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // ---- Forgot password link -------------------------------
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ForgotPasswordPage(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'Request Password Reset',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
+
                   // ---- Already have account? Login link -------------------
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text('Already have an account? '),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const LoginPage(),
+                      MouseRegion(
+                        onEnter: (_) => setState(() => _isHoveringLogin = true),
+                        onExit: (_) => setState(() => _isHoveringLogin = false),
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const LoginPage(),
+                              ),
+                            );
+                          },
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 150),
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              decoration: _isHoveringLogin
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                              decorationThickness: 2.0,
                             ),
-                          );
-                        },
-                        child: const Text(
-                          'Login',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                            child: const Text('Login'),
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
+
                   // ---- Back to home link ----------------------------------
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const LandingPage()),
-                        (_) => false,
-                      );
-                    },
-                    child: const Text(
-                      'Back to home page',
-                      style: TextStyle(color: AppColors.textSecondary),
+                  MouseRegion(
+                    onEnter: (_) => setState(() => _isHoveringBack = true),
+                    onExit: (_) => setState(() => _isHoveringBack = false),
+                    cursor: SystemMouseCursors.click,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const LandingPage()),
+                          (_) => false,
+                        );
+                      },
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 150),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          decoration: _isHoveringBack
+                              ? TextDecoration.underline
+                              : TextDecoration.none,
+                          decorationThickness: 2.0,
+                        ),
+                        child: const Text('Back to home page'),
+                      ),
                     ),
                   ),
                 ],
@@ -359,27 +368,15 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 }
 
-/// Simple Google "G" icon used in the sign-up page.
 class _GoogleIcon extends StatelessWidget {
   const _GoogleIcon();
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Image.asset(
+      'assets/images/google.png',
       width: 20,
       height: 20,
-      decoration: BoxDecoration(
-        color: AppColors.googleBlue,
-        borderRadius: BorderRadius.circular(2),
-      ),
-      alignment: Alignment.center,
-      child: const Text(
-        'G',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-        ),
-      ),
+      fit: BoxFit.contain,
     );
   }
 }

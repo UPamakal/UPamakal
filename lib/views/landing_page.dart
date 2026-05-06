@@ -30,9 +30,9 @@ class LandingPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 2),
-              // ---- Logo ---------------------------------------------------
-              const LogoWidget(size: AppConstants.logoSize),
-              const SizedBox(height: 24),
+              // ---- Logo (increased size on landing page) --------------
+              const LogoWidget(size: 300),
+              const SizedBox(height: 5),
               // ---- App name -----------------------------------------------
               Text(
                 AppConstants.appName,
