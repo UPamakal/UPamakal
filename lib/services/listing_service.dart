@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/listing_model.dart';
@@ -16,9 +15,7 @@ class ListingService {
       maxWidth: 1024,
     );
 
-    if (pickedFiles != null) {
-      images.addAll(pickedFiles.take(maxCount));
-    }
+    images.addAll(pickedFiles.take(maxCount));
 
     return images;
   }
@@ -58,7 +55,7 @@ class ListingService {
             return data['isSold'] == false && data['isDraft'] != true;
           })
           .map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             return ListingModel.fromFirestore(data, doc.id);
           })
           .toList();
@@ -82,7 +79,7 @@ class ListingService {
             return true;
           })
           .map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             return ListingModel.fromFirestore(data, doc.id);
           })
           .toList();
@@ -105,7 +102,7 @@ class ListingService {
             return true;
           })
           .map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             return ListingModel.fromFirestore(data, doc.id);
           })
           .toList();
@@ -128,7 +125,7 @@ class ListingService {
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         return ListingModel.fromFirestore(data, doc.id);
       }).toList();
     });
@@ -137,7 +134,7 @@ class ListingService {
   Future<ListingModel?> getListingById(String listingId) async {
     final doc = await FirebaseFirestore.instance.collection('listings').doc(listingId).get();
     if (doc.exists) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data()!;
       return ListingModel.fromFirestore(data, doc.id);
     }
     return null;

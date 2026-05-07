@@ -7,9 +7,12 @@ import 'app.dart';
 import 'view_models/auth_view_model.dart';
 import 'view_models/landing_view_model.dart';
 import 'view_models/home_view_model.dart';
+import 'view_models/chat_view_model.dart';
 import 'services/auth_service.dart';
 import 'services/listing_service.dart';
 import 'services/cloudinary_service.dart';
+import 'services/chat_service.dart';
+import 'services/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +30,8 @@ void main() async {
   
   final authService = AuthService();
   final listingService = ListingService();
+  final chatService = ChatService();
+  final fcmService = FCMService();
   
   runApp(
     MultiProvider(
@@ -36,6 +41,18 @@ void main() async {
         ),
         ChangeNotifierProvider<LandingViewModel>(
           create: (context) => LandingViewModel(),
+        ),
+        ChangeNotifierProxyProvider<AuthViewModel, ChatViewModel>(
+          create: (context) => ChatViewModel(
+            chatService: chatService,
+            fcmService: fcmService,
+            currentUserId: '',
+          ),
+          update: (context, authVM, chatVM) => ChatViewModel(
+            chatService: chatService,
+            fcmService: fcmService,
+            currentUserId: authVM.user?.uid ?? '',
+          ),
         ),
         ChangeNotifierProvider<HomeViewModel>(
           create: (context) => HomeViewModel(listingService: listingService),
