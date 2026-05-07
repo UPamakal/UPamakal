@@ -69,7 +69,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final currentUserId = authVM.user?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 111, 63, 63),
       appBar: _buildAppBar(context),
       body: Column(
         children: [
@@ -119,9 +119,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   AppBar _buildAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: Colors.white,
-      elevation: 0.5,
+      elevation: 1,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+        icon: const Icon(Icons.arrow_back, color: Colors.black),
         onPressed: () => Navigator.pop(context),
       ),
       title: Row(
@@ -157,7 +157,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.info_outline, color: AppColors.primary),
+          icon: const Icon(Icons.info_outline, color: Colors.black),
           onPressed: () {},
         ),
       ],
@@ -186,13 +186,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe ? AppColors.primary : const Color(0xFFF1F0F0),
+                color: isMe ? AppColors.primary : Colors.white,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
                   bottomLeft: Radius.circular(isMe ? 20 : (showAvatar ? 0 : 20)),
                   bottomRight: Radius.circular(isMe ? (showAvatar ? 0 : 20) : 20),
                 ),
+                boxShadow: isMe ? null : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
               child: Text(
                 message.text,
@@ -219,15 +226,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.add_circle, color: AppColors.primary),
+              icon: const Icon(Icons.add_circle, color: Colors.black),
               onPressed: () {},
             ),
             IconButton(
-              icon: const Icon(Icons.camera_alt, color: AppColors.primary),
+              icon: const Icon(Icons.camera_alt, color: Colors.black),
               onPressed: () {},
             ),
             IconButton(
-              icon: const Icon(Icons.image, color: AppColors.primary),
+              icon: const Icon(Icons.image, color: Colors.black),
               onPressed: () {},
             ),
             Expanded(
@@ -248,7 +255,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.send, color: AppColors.primary),
+              icon: const Icon(Icons.send, color: Colors.black),
               onPressed: _sendMessage,
             ),
           ],
