@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/listing_model.dart';
+import '../models/user_model.dart';
 import '../utils/constants.dart';
 import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
 import 'chat_detail_page.dart';
+import 'profile_page.dart';
+import 'login_page.dart';
 
 class ListingDetailPage extends StatelessWidget {
   final ListingModel listing;
@@ -15,6 +18,11 @@ class ListingDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
     final isSeller = authVM.user?.uid == listing.sellerId;
+    final sellerUser = UserModel(
+      uid: listing.sellerId,
+      displayName: listing.sellerName,
+      email: null,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -25,6 +33,19 @@ class ListingDetailPage extends StatelessWidget {
             expandedHeight: 300,
             pinned: true,
             backgroundColor: AppColors.primary,
+            automaticallyImplyLeading: false,
+            leading: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Material(
+                color: Colors.white,
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
             flexibleSpace: FlexibleSpaceBar(
               background: listing.imageUrl != null
                   ? Image.network(listing.imageUrl!, fit: BoxFit.cover)
@@ -127,21 +148,79 @@ class ListingDetailPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.primaryLight,
-                      child: Text(
-                        listing.sellerName[0].toUpperCase(),
-                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    leading: InkWell(
+                        borderRadius: BorderRadius.circular(48),
+                        onTap: () async {
+                          final currentUid = authVM.user?.uid;
+                          if (currentUid != null && currentUid == listing.sellerId) {
+                            // Show sign out option
+                            showModalBottomSheet(
+                              context: context,
+                              builder: (context) => SafeArea(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      leading: const Icon(Icons.logout, color: Colors.redAccent),
+                                      title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
+                                      onTap: () async {
+                                        Navigator.pop(context);
+                                        try {
+                                          await authVM.signOut();
+                                          if (!context.mounted) return;
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(builder: (_) => const LoginPage()),
+                                            (_) => false,
+                                          );
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Failed to sign out: $e')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          } else {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ProfilePage(
+                                  sellerId: listing.sellerId,
+                                  sellerUser: sellerUser,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: CircleAvatar(
+                          radius: 24,
+                          backgroundColor: AppColors.primaryLight,
+                          child: Text(
+                            listing.sellerName[0].toUpperCase(),
+                            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
-                    ),
                     title: Text(
                       listing.sellerName,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: const Text('Member since 2023'),
                     trailing: OutlinedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProfilePage(
+                              sellerId: listing.sellerId,
+                              sellerUser: sellerUser,
+                            ),
+                          ),
+                        );
+                      },
                       child: const Text('View Profile'),
                     ),
                   ),

@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../models/listing_model.dart';
 import 'create_listing_page.dart';
 import 'chat_list_page.dart';
+import 'profile_page.dart';
 import 'listing_detail_page.dart';
 
 /// --------------------------------------------------------------------------
@@ -739,6 +740,14 @@ class HomePage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const ChatListPage()),
+          );
+          return;
+        }
+
+        if (index == 3) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfilePage()),
           );
           return;
         }

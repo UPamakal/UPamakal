@@ -40,7 +40,9 @@ class UpamakalApp extends StatelessWidget {
         scaffoldBackgroundColor: AppColors.background,
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          iconTheme: IconThemeData(color: Colors.black),
+          actionsIconTheme: IconThemeData(color: Colors.black),
           elevation: 0,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
