@@ -3,13 +3,16 @@ import 'package:provider/provider.dart';
 import '../utils/constants.dart';
 import '../view_models/auth_view_model.dart';
 import '../view_models/home_view_model.dart';
+import '../view_models/search_view_model.dart';
 import '../models/user_model.dart';
 import '../models/listing_model.dart';
+import '../services/image_service.dart';
+import '../services/listing_service.dart';
 import 'create_listing_page.dart';
 import 'chat_list_page.dart';
 import 'profile_page.dart';
 import 'listing_detail_page.dart';
-import '../services/image_service.dart';
+import 'search_page.dart';
 
 /// --------------------------------------------------------------------------
 /// HomePage - Marketplace Listings
@@ -80,11 +83,6 @@ class _HomePageState extends State<HomePage> {
     final homeVM = context.watch<HomeViewModel>();
     final user = authVM.user;
     final displayName = _getDisplayName(user);
-
-    // Sync search controller with ViewModel
-    if (_searchController.text != homeVM.searchQuery) {
-      _searchController.text = homeVM.searchQuery;
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -216,36 +214,28 @@ class _HomePageState extends State<HomePage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) => homeVM.setSearchQuery(value),
-                        decoration: InputDecoration(
-                          hintText: 'Search books, gadgets...',
-                          hintStyle: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
+                      child: GestureDetector(
+                        onTap: () => _openSearchPage(context),
+                        child: AbsorbPointer(
+                          child: TextField(
+                            controller: _searchController,
+                            readOnly: true,
+                            decoration: InputDecoration(
+                              hintText: 'Search books, gadgets...',
+                              hintStyle: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                color: AppColors.textSecondary,
+                                size: 20,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
                           ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: AppColors.textSecondary,
-                            size: 20,
-                          ),
-                          suffixIcon: homeVM.isSearching
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    color: AppColors.textSecondary,
-                                    size: 18,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    homeVM.clearSearch();
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
                     ),
@@ -259,15 +249,7 @@ class _HomePageState extends State<HomePage> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: IconButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Filters coming soon!'),
-                            behavior: SnackBarBehavior.floating,
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      },
+                      onPressed: () => _openSearchPage(context),
                       icon: const Icon(
                         Icons.tune,
                         color: AppColors.textSecondary,
@@ -731,6 +713,11 @@ class _HomePageState extends State<HomePage> {
 
     return GestureDetector(
       onTap: () {
+        if (index == 1) {
+          _openSearchPage(context);
+          return;
+        }
+
         if (index == 2) {
           Navigator.push(
             context,
@@ -746,17 +733,8 @@ class _HomePageState extends State<HomePage> {
           );
           return;
         }
-        
+
         homeVM.setSelectedTab(index);
-        if (index != 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${_getTabTitle(index)} coming soon!'),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        }
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -791,6 +769,29 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Pushes [SearchPage] with its own [SearchViewModel] scoped to the route.
+  /// Using ChangeNotifierProvider here (rather than at the app root) means the
+  /// VM — and its debounce timer / stream subscription — is disposed automatically
+  /// when the user pops back to [HomePage].
+  void _openSearchPage(BuildContext context) {
+    // Read ListingService HERE, while `context` still belongs to HomePage and
+    // has access to the ancestor providers. The MaterialPageRoute builder runs
+    // in a brand-new route context that is detached from the app provider tree,
+    // so calling context.read<ListingService>() inside the builder throws
+    // ProviderNotFoundException. Capturing it beforehand sidesteps this entirely.
+    final listingService = context.read<ListingService>();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider(
+          create: (_) => SearchViewModel(listingService: listingService),
+          child: const SearchPage(),
+        ),
       ),
     );
   }

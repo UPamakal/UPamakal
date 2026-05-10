@@ -12,27 +12,30 @@ import 'services/auth_service.dart';
 import 'services/listing_service.dart';
 import 'services/chat_service.dart';
 import 'services/fcm_service.dart';
-// Remove: import 'services/cloudinary_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await dotenv.load(fileName: ".env");
-  
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
-  // Remove: await CloudinaryService.initialize();
-  
+
   final authService = AuthService();
   final listingService = ListingService();
   final chatService = ChatService();
   final fcmService = FCMService();
-  
+
   runApp(
     MultiProvider(
       providers: [
+        // Expose ListingService itself so any widget deeper in the tree
+        // (e.g. SearchViewModel created inside a pushed route) can read it
+        // via context.read<ListingService>() without a ProviderNotFoundException.
+        Provider<ListingService>(
+          create: (_) => listingService,
+        ),
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(authService: authService),
         ),
