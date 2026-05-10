@@ -14,7 +14,6 @@ class HomeViewModel extends ChangeNotifier {
   String? _errorMessage;
   int _selectedTabIndex = 0;
   
-  // Store stream subscriptions
   StreamSubscription? _listingsSubscription;
   
   HomeViewModel({required ListingService listingService})
@@ -48,7 +47,18 @@ class HomeViewModel extends ChangeNotifier {
   bool get hasListings => _filteredListings.isNotEmpty;
   bool get isSearching => _searchQuery.isNotEmpty;
   
-  static const List<String> categories = ['All Items', 'Books', 'Electronics'];
+  // Expanded categories list
+  static const List<String> categories = [
+    'All Items',
+    'Books', 
+    'Electronics',
+    'Clothing',
+    'Furniture',
+    'Sports',
+    'Food',
+    'Services',
+    'Other'
+  ];
   
   void setSelectedTab(int index) {
     if (_selectedTabIndex == index) return;

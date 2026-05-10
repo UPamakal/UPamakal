@@ -7,12 +7,10 @@ import '../services/listing_service.dart';
 class CreateListingViewModel extends ChangeNotifier {
   final ListingService _listingService;
 
-  // Form controllers
   final titleController = TextEditingController();
   final priceController = TextEditingController();
   final descriptionController = TextEditingController();
 
-  // Form state
   String? _selectedCategory;
   String _selectedCondition = 'New';
   List<XFile> _selectedImages = [];
@@ -36,6 +34,8 @@ class CreateListingViewModel extends ChangeNotifier {
     'Electronics',
     'Clothing',
     'Food',
+    'Furniture',
+    'Sports',
     'Services',
     'Other',
   ];
@@ -61,7 +61,7 @@ class CreateListingViewModel extends ChangeNotifier {
 
   Future<void> pickImages() async {
     try {
-      final images = await _listingService.pickImages(maxCount: 5);
+      final images = await _listingService.pickImages(maxCount: 3);
       _selectedImages = images;
       notifyListeners();
     } catch (e) {

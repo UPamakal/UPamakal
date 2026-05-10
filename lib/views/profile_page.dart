@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/listing_model.dart';
 import '../models/user_model.dart';
 import '../services/listing_service.dart';
+import '../services/image_service.dart';
 import '../utils/constants.dart';
 import '../view_models/auth_view_model.dart';
+import '../view_models/chat_view_model.dart';
 import 'chat_list_page.dart';
+import 'chat_detail_page.dart';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'edit_listing_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? sellerId;
@@ -27,6 +32,8 @@ class _ProfilePageState extends State<ProfilePage> {
   late String _profileUserId;
   Stream<List<ListingModel>>? _cachedStream;
   String? _lastUserId;
+  UserModel? _fetchedSellerUser;
+  bool _isLoadingUser = false;
 
   int _selectedTabIndex = 0;
 
@@ -35,6 +42,30 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _isOwnProfile = widget.sellerId == null;
     _profileUserId = widget.sellerId ?? '';
+    
+    if (!_isOwnProfile && widget.sellerUser == null) {
+      _fetchSellerUser();
+    }
+  }
+
+  Future<void> _fetchSellerUser() async {
+    setState(() => _isLoadingUser = true);
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_profileUserId)
+          .get();
+      
+      if (userDoc.exists) {
+        _fetchedSellerUser = UserModel.fromFirestore(userDoc.data()!);
+      }
+    } catch (e) {
+      debugPrint('Error fetching seller: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingUser = false);
+      }
+    }
   }
 
   void _openSettingsMenu() {
@@ -71,7 +102,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Stream<List<ListingModel>> _getListingsStream(String userId) {
-    // Only recreate stream if userId changed
     if (userId.isEmpty) {
       _cachedStream = const Stream<List<ListingModel>>.empty();
       _lastUserId = '';
@@ -83,14 +113,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _getInitial(UserModel? user) {
-    if (user == null) return 'U';
+    if (user == null) return '?';
     final displayName = user.displayName;
     if (displayName != null && displayName.isNotEmpty) {
       return displayName[0].toUpperCase();
     }
     final email = user.email;
     if (email != null && email.isNotEmpty) return email[0].toUpperCase();
-    return 'U';
+    return '?';
   }
 
   List<ListingModel> _activeListings(List<ListingModel> listings) {
@@ -197,6 +227,270 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _startChatWithSeller() async {
+    final authVM = context.read<AuthViewModel>();
+    final currentUserId = authVM.user?.uid;
+    
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please login to message the seller'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    
+    if (currentUserId == _profileUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You cannot message yourself!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    
+    final chatVM = context.read<ChatViewModel>();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      final room = await chatVM.startConversation(
+        sellerId: _profileUserId,
+        listingId: '', // No specific listing for profile chat
+        listingTitle: 'Chat with ${widget.sellerUser?.displayName ?? 'Seller'}',
+      );
+      
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ChatDetailPage(chatRoom: room)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start chat: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editListing(ListingModel listing) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EditListingPage(listing: listing),
+      ),
+    );
+    
+    if (result == true && mounted) {
+      _refreshListings();
+    }
+  }
+
+  Future<void> _deleteListing(ListingModel listing) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Listing'),
+        content: Text(
+          'Are you sure you want to delete "${listing.title}"?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await _listingService.deleteListing(listing.id);
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"${listing.title}" has been deleted'),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _refreshListings();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete listing: $e'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _refreshListings() {
+    setState(() {
+      _lastUserId = null;
+    });
+  }
+
+  Future<void> _toggleSoldStatus(ListingModel listing) async {
+    final newStatus = !listing.isSold;
+    final action = newStatus ? 'mark as sold' : 'mark as available';
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(newStatus ? 'Mark as Sold' : 'Mark as Available'),
+        content: Text(
+          'Do you want to ${action} "${listing.title}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: newStatus ? Colors.orange : Colors.green,
+            ),
+            child: Text(newStatus ? 'Mark Sold' : 'Mark Available'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await _listingService.markAsSold(listing.id, newStatus);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"${listing.title}" has been ${action}ed'),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        _refreshListings();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update status: $e'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showListingOptions(ListingModel listing) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+              title: const Text('Edit Listing'),
+              onTap: () {
+                Navigator.pop(context);
+                _editListing(listing);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                listing.isSold ? Icons.visibility_outlined : Icons.sell_outlined,
+                color: listing.isSold ? Colors.green : Colors.orange,
+              ),
+              title: Text(listing.isSold ? 'Mark as Available' : 'Mark as Sold'),
+              onTap: () {
+                Navigator.pop(context);
+                _toggleSoldStatus(listing);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Delete Listing',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteListing(listing);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListingImage(ListingModel listing) {
+    if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
+      return ImageService.base64ToImage(
+        listing.imageBase64!,
+        fit: BoxFit.cover,
+      );
+    } 
+    else if (listing.imageBase64List.isNotEmpty) {
+      return ImageService.base64ToImage(
+        listing.imageBase64List.first,
+        fit: BoxFit.cover,
+      );
+    }
+    else {
+      return _buildFallbackThumb(listing);
+    }
+  }
+
   Widget _buildStatValue(String value, String label) {
     return Column(
       children: [
@@ -220,6 +514,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // FIXED: Tab chip now shows different colors for selected vs unselected
   Widget _buildTabChip(String label, bool selected, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
@@ -246,7 +541,7 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: selected ? AppColors.primary : AppColors.primary,
+              color: selected ? AppColors.primary : AppColors.textSecondary,
             ),
           ),
         ),
@@ -278,34 +573,57 @@ class _ProfilePageState extends State<ProfilePage> {
                   aspectRatio: 1.15,
                   child: Container(
                     color: const Color(0xFFF2F2F2),
-                    child: listing.imageUrl != null
-                        ? Image.network(
-                            listing.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildFallbackThumb(listing),
-                          )
-                        : _buildFallbackThumb(listing),
+                    child: _buildListingImage(listing),
                   ),
                 ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 4,
-                        ),
-                      ],
+                if (listing.isSold)
+                  Container(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.white, size: 32),
+                          SizedBox(height: 4),
+                          Text(
+                            'SOLD',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: const Icon(Icons.edit, size: 14, color: Colors.black87),
                   ),
-                ),
+                if (_isOwnProfile)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => _showListingOptions(listing),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.more_vert,
+                          size: 18,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -318,21 +636,33 @@ class _ProfilePageState extends State<ProfilePage> {
                   listing.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+                    color: listing.isSold ? Colors.grey[600] : Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   listing.formattedPrice,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
+                    color: listing.isSold ? Colors.grey[600] : AppColors.primary,
+                    decoration: listing.isSold ? TextDecoration.lineThrough : null,
                   ),
                 ),
+                if (listing.isSold)
+                  const SizedBox(height: 2),
+                if (listing.isSold)
+                  Text(
+                    'Sold',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[500],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -388,6 +718,20 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
     final user = authVM.user;
+    
+    // FIXED: Add loading state for own profile when user is null
+    if (_isOwnProfile && user == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    UserModel? displayUser;
+    if (_isOwnProfile) {
+      displayUser = user;
+    } else {
+      displayUser = widget.sellerUser ?? _fetchedSellerUser;
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -419,16 +763,16 @@ class _ProfilePageState extends State<ProfilePage> {
       body: SafeArea(
         top: false,
         child: StreamBuilder<List<ListingModel>>(
-          stream: _getListingsStream(_isOwnProfile ? (user?.uid ?? '') : _profileUserId),
+          stream: _getListingsStream(
+            _isOwnProfile ? (user?.uid ?? '') : _profileUserId,
+          ),
           builder: (context, snapshot) {
-            // Handle error state
             if (snapshot.hasError) {
               return Center(
                 child: Text('Error loading listings: ${snapshot.error}'),
               );
             }
             
-            // Handle loading state
             if (snapshot.connectionState == ConnectionState.waiting && snapshot.data == null) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -437,10 +781,9 @@ class _ProfilePageState extends State<ProfilePage> {
             final activeListings = _activeListings(allListings);
             final soldListings = _soldListings(allListings);
             
-            UserModel? profileUser = _isOwnProfile ? user : widget.sellerUser;
-            final displayName = profileUser?.displayName ?? profileUser?.email ?? 'User';
-            final email = profileUser?.email ?? 'No email available';
-            final photoUrl = profileUser?.photoURL;
+            final displayName = displayUser?.displayName ?? displayUser?.email ?? 'User';
+            final email = displayUser?.email ?? 'No email available';
+            final photoUrl = displayUser?.photoURL;
 
             final selectedListings = switch (_selectedTabIndex) {
               0 => activeListings,
@@ -483,7 +826,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                       photoUrl != null ? NetworkImage(photoUrl) : null,
                                   child: photoUrl == null
                                       ? Text(
-                                          _getInitial(profileUser),
+                                          _getInitial(displayUser),
                                           style: const TextStyle(
                                             fontSize: 22,
                                             fontWeight: FontWeight.w800,
@@ -603,16 +946,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     else
                                       Expanded(
                                         child: OutlinedButton(
-                                          onPressed: () {
-                                            final authVM = context.read<AuthViewModel>();
-                                            if (authVM.user?.uid != _profileUserId) {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) => ChatListPage(),
-                                                ),
-                                              );
-                                            }
-                                          },
+                                          onPressed: _startChatWithSeller,
                                           style: OutlinedButton.styleFrom(
                                             side: const BorderSide(
                                               color: Colors.black26,
@@ -635,7 +969,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: FilledButton(
-                                        onPressed: () => _openShareProfile(profileUser),
+                                        onPressed: () => _openShareProfile(displayUser),
                                         style: FilledButton.styleFrom(
                                           backgroundColor: AppColors.primary,
                                           shape: RoundedRectangleBorder(
