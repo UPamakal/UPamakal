@@ -9,22 +9,33 @@ import 'create_listing_page.dart';
 import 'chat_list_page.dart';
 import 'profile_page.dart';
 import 'listing_detail_page.dart';
+import '../services/image_service.dart';
 
 /// --------------------------------------------------------------------------
 /// HomePage - Marketplace Listings
 /// --------------------------------------------------------------------------
-/// The main marketplace screen that displays:
-///   - Dark-red header with user greeting, avatar, and bell icon
-///   - Pill-shaped search bar with filter button
-///   - Category filters (filled solid chip for selected)
-///   - Latest Listings grid with heart-bookmark icons
-///   - Floating "+" action button centred above bottom nav
-///   - Bottom navigation bar (Home, Search, Messages, Profile)
-/// --------------------------------------------------------------------------
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  // ---- Helpers ------------------------------------------------------------
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // Controller for search - managed in StatefulWidget to dispose properly
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   String _getInitial(UserModel? user) {
     if (user == null) return 'U';
@@ -63,8 +74,6 @@ class HomePage extends StatelessWidget {
     }
   }
 
-  // ---- Build --------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
@@ -72,9 +81,13 @@ class HomePage extends StatelessWidget {
     final user = authVM.user;
     final displayName = _getDisplayName(user);
 
+    // Sync search controller with ViewModel
+    if (_searchController.text != homeVM.searchQuery) {
+      _searchController.text = homeVM.searchQuery;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      // Floating "+" button centred above the bottom nav
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.of(context).push(
@@ -82,7 +95,6 @@ class HomePage extends StatelessWidget {
               builder: (_) => const CreateListingPage(),
             ),
           );
-          // If a listing was created successfully, refresh the listings
           if (result == true) {
             homeVM.refreshListings();
           }
@@ -95,29 +107,19 @@ class HomePage extends StatelessWidget {
       bottomNavigationBar: _buildBottomNavBar(context, homeVM),
       body: Column(
         children: [
-          // ---- Dark-red header with search bar inside --------------------
           _buildHeader(context, displayName, user, authVM, homeVM),
-
-          // ---- Scrollable body -------------------------------------------
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => homeVM.refreshListings(),
               child: CustomScrollView(
                 slivers: [
-                  // Categories section
                   SliverToBoxAdapter(
                     child: _buildCategoriesSection(context, homeVM),
                   ),
-
-                  // "Latest Listings" label
                   SliverToBoxAdapter(
                     child: _buildLatestListingsHeader(context),
                   ),
-
-                  // Listings grid (or loading / empty / error states)
                   _buildListingsSliver(context, homeVM),
-
-                  // Bottom padding so FAB doesn't overlap last card
                   const SliverToBoxAdapter(child: SizedBox(height: 90)),
                 ],
               ),
@@ -128,10 +130,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Header
-  // -------------------------------------------------------------------------
-
   Widget _buildHeader(
     BuildContext context,
     String displayName,
@@ -139,8 +137,6 @@ class HomePage extends StatelessWidget {
     AuthViewModel authVM,
     HomeViewModel homeVM,
   ) {
-    final searchController = TextEditingController(text: homeVM.searchQuery);
-
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.primary,
@@ -154,10 +150,8 @@ class HomePage extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           child: Column(
             children: [
-              // ---- Top row: avatar + greeting + bell ----------------------
               Row(
                 children: [
-                  // Avatar
                   GestureDetector(
                     onTap: () => _showProfileMenu(context, user, authVM),
                     child: CircleAvatar(
@@ -174,8 +168,6 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-
-                  // Greeting + subtitle
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,8 +188,6 @@ class HomePage extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  // Bell icon
                   IconButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,11 +207,8 @@ class HomePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-
-              // ---- Search bar row -----------------------------------------
               Row(
                 children: [
-                  // Search field
                   Expanded(
                     child: Container(
                       height: 48,
@@ -230,7 +217,7 @@ class HomePage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: TextField(
-                        controller: searchController,
+                        controller: _searchController,
                         onChanged: (value) => homeVM.setSearchQuery(value),
                         decoration: InputDecoration(
                           hintText: 'Search books, gadgets...',
@@ -251,7 +238,7 @@ class HomePage extends StatelessWidget {
                                     size: 18,
                                   ),
                                   onPressed: () {
-                                    searchController.clear();
+                                    _searchController.clear();
                                     homeVM.clearSearch();
                                   },
                                 )
@@ -264,8 +251,6 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-
-                  // Filter button
                   Container(
                     width: 48,
                     height: 48,
@@ -299,17 +284,14 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Categories section
-  // -------------------------------------------------------------------------
-
   Widget _buildCategoriesSection(BuildContext context, HomeViewModel homeVM) {
+    final categories = HomeViewModel.categories;
+    
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -343,62 +325,59 @@ class HomePage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Category chips row
-          Row(
-            children: HomeViewModel.categories.map((category) {
-              final isSelected = homeVM.selectedCategory == category;
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: () => homeVM.setSelectedCategory(category),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          isSelected ? AppColors.primary : Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : Colors.grey.shade300,
-                        width: 1.5,
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: categories.map((category) {
+                final isSelected = homeVM.selectedCategory == category;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () => homeVM.setSelectedCategory(category),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
                       ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.25),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              )
-                            ]
-                          : [],
-                    ),
-                    child: Text(
-                      category,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary : Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.grey.shade300,
+                          width: 1.5,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : [],
+                      ),
+                      child: Text(
+                        category,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Latest Listings header
-  // -------------------------------------------------------------------------
 
   Widget _buildLatestListingsHeader(BuildContext context) {
     return Padding(
@@ -413,10 +392,6 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Listings sliver (loading / error / empty / grid)
-  // -------------------------------------------------------------------------
 
   Widget _buildListingsSliver(BuildContext context, HomeViewModel homeVM) {
     if (homeVM.isLoading) {
@@ -507,95 +482,99 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Listing card
-  // -------------------------------------------------------------------------
-
+  // FIXED: Proper indentation
   Widget _buildListingCard(
-  BuildContext context,
-  ListingModel listing,
-  HomeViewModel homeVM,
-) {
-  return GestureDetector(
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ListingDetailPage(listing: listing),
-        ),
-      );
-    },
-    child: Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    BuildContext context,
+    ListingModel listing,
+    HomeViewModel homeVM,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ListingDetailPage(listing: listing),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ---- Image area ---------------------------------------------
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Stack(
-              children: [
-                // Image from Cloudinary or placeholder
-                Container(
-                  height: 130,
-                  width: double.infinity,
-                  color: const Color(0xFFF0F0F0),
-                  child: listing.imageUrl != null
-                      ? Image.network(
-                          listing.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _categoryIcon(listing),
-                        )
-                      : _categoryIcon(listing),
-                ),
-                // Heart button
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: GestureDetector(
-                    onTap: () => homeVM.saveListing(listing.id),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 130,
+                    width: double.infinity,
+                    color: const Color(0xFFF0F0F0),
+                    child: _buildListingImage(listing),
+                  ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
                     child: Container(
-                      width: 32,
-                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 4,
-                          ),
-                        ],
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
-                        Icons.favorite_border,
-                        size: 18,
-                        color: AppColors.primary,
+                      child: Text(
+                        listing.category,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => homeVM.saveListing(listing.id),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.favorite_border,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-
-            // ---- Info area ----------------------------------------------
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
                   Text(
                     listing.title,
                     style: const TextStyle(
@@ -607,8 +586,6 @@ class HomePage extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-
-                  // Price row (price + heart icon inline like screenshot)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -620,11 +597,24 @@ class HomePage extends StatelessWidget {
                           color: AppColors.primary,
                         ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          listing.condition,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
-
-                  // Location
                   Row(
                     children: [
                       const Icon(
@@ -655,7 +645,17 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  /// Category icon shown when there is no image URL
+  // FIXED: Now checks both imageBase64 and imageBase64List
+  Widget _buildListingImage(ListingModel listing) {
+    if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
+      return ImageService.base64ToImage(listing.imageBase64!, fit: BoxFit.cover);
+    } else if (listing.imageBase64List.isNotEmpty) {
+      return ImageService.base64ToImage(listing.imageBase64List.first, fit: BoxFit.cover);
+    } else {
+      return _categoryIcon(listing);
+    }
+  }
+
   Widget _categoryIcon(ListingModel listing) {
     return Center(
       child: Icon(
@@ -665,10 +665,6 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Bottom nav bar
-  // -------------------------------------------------------------------------
 
   Widget _buildBottomNavBar(BuildContext context, HomeViewModel homeVM) {
     return BottomAppBar(
@@ -697,7 +693,6 @@ class HomePage extends StatelessWidget {
               index: 1,
               homeVM: homeVM,
             ),
-            // Gap for FAB
             const SizedBox(width: 48),
             _navItem(
               context,
@@ -799,10 +794,6 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Profile bottom sheet
-  // -------------------------------------------------------------------------
 
   void _showProfileMenu(
     BuildContext context,

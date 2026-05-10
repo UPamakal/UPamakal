@@ -1,24 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// --------------------------------------------------------------------------
-/// listing_model.dart
-/// --------------------------------------------------------------------------
-/// Updated ListingModel with condition field and improved Firestore support.
-/// --------------------------------------------------------------------------
 class ListingModel {
   final String id;
   final String title;
   final String description;
   final double price;
   final String location;
-  final String? imageUrl;
+  final String? imageBase64; // Primary image as Base64
   final String category;
   final String condition;
   final String sellerId;
   final String sellerName;
   final DateTime createdAt;
   final bool isSold;
-  final List<String> imageUrls;
+  final List<String> imageBase64List; // Multiple images as Base64
   final bool isSaved;
 
   const ListingModel({
@@ -27,18 +22,17 @@ class ListingModel {
     required this.description,
     required this.price,
     required this.location,
-    this.imageUrl,
+    this.imageBase64,
     required this.category,
     required this.condition,
     required this.sellerId,
     required this.sellerName,
     required this.createdAt,
     this.isSold = false,
-    this.imageUrls = const [],
+    this.imageBase64List = const [],
     this.isSaved = false,
   });
 
-  /// Helper function to safely convert Firestore Timestamp to DateTime
   static DateTime _convertTimestamp(dynamic timestamp) {
     if (timestamp == null) return DateTime.now();
     if (timestamp is DateTime) return timestamp;
@@ -46,7 +40,6 @@ class ListingModel {
     return DateTime.now();
   }
 
-  /// Factory constructor for creating a listing from Firestore document
   factory ListingModel.fromFirestore(Map<String, dynamic> data, String id) {
     return ListingModel(
       id: id,
@@ -54,51 +47,49 @@ class ListingModel {
       description: data['description'] ?? '',
       price: (data['price'] ?? 0).toDouble(),
       location: data['location'] ?? '',
-      imageUrl: data['imageUrl'],
+      imageBase64: data['imageBase64'],
       category: data['category'] ?? 'Other',
       condition: data['condition'] ?? 'New',
       sellerId: data['sellerId'] ?? '',
       sellerName: data['sellerName'] ?? 'Unknown Seller',
-      createdAt: _convertTimestamp(data['createdAt']),  // FIXED HERE
+      createdAt: _convertTimestamp(data['createdAt']),
       isSold: data['isSold'] ?? false,
-      imageUrls: List<String>.from(data['imageUrls'] ?? []),
+      imageBase64List: List<String>.from(data['imageBase64List'] ?? []),
       isSaved: data['isSaved'] ?? false,
     );
   }
 
-  /// Convert ListingModel to Firestore document
   Map<String, dynamic> toFirestore() {
     return {
       'title': title,
       'description': description,
       'price': price,
       'location': location,
-      'imageUrl': imageUrl,
+      'imageBase64': imageBase64,
       'category': category,
       'condition': condition,
       'sellerId': sellerId,
       'sellerName': sellerName,
       'createdAt': createdAt,
       'isSold': isSold,
-      'imageUrls': imageUrls,
+      'imageBase64List': imageBase64List,
     };
   }
 
-  /// Create a copy of this listing with updated fields
   ListingModel copyWith({
     String? id,
     String? title,
     String? description,
     double? price,
     String? location,
-    String? imageUrl,
+    String? imageBase64,
     String? category,
     String? condition,
     String? sellerId,
     String? sellerName,
     DateTime? createdAt,
     bool? isSold,
-    List<String>? imageUrls,
+    List<String>? imageBase64List,
     bool? isSaved,
   }) {
     return ListingModel(
@@ -107,22 +98,20 @@ class ListingModel {
       description: description ?? this.description,
       price: price ?? this.price,
       location: location ?? this.location,
-      imageUrl: imageUrl ?? this.imageUrl,
+      imageBase64: imageBase64 ?? this.imageBase64,
       category: category ?? this.category,
       condition: condition ?? this.condition,
       sellerId: sellerId ?? this.sellerId,
       sellerName: sellerName ?? this.sellerName,
       createdAt: createdAt ?? this.createdAt,
       isSold: isSold ?? this.isSold,
-      imageUrls: imageUrls ?? this.imageUrls,
+      imageBase64List: imageBase64List ?? this.imageBase64List,
       isSaved: isSaved ?? this.isSaved,
     );
   }
 
-  /// Formatted price string
   String get formattedPrice => '₱${price.toStringAsFixed(0)}';
 
-  /// Time ago string (e.g., "2 days ago")
   String get timeAgo {
     final difference = DateTime.now().difference(createdAt);
     if (difference.inDays > 7) {

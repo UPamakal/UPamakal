@@ -8,6 +8,7 @@ import '../view_models/auth_view_model.dart';
 import 'chat_detail_page.dart';
 import 'profile_page.dart';
 import 'login_page.dart';
+import '../services/image_service.dart';
 
 class ListingDetailPage extends StatelessWidget {
   final ListingModel listing;
@@ -15,6 +16,31 @@ class ListingDetailPage extends StatelessWidget {
   const ListingDetailPage({super.key, required this.listing});
 
   Future<void> _openChat(BuildContext context) async {
+    final authVM = context.read<AuthViewModel>();
+    final currentUserId = authVM.user?.uid;
+    
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please login to message the seller'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
+    if (currentUserId == listing.sellerId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You cannot message yourself about your own listing!'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
     final chatVM = context.read<ChatViewModel>();
 
     showDialog(
@@ -48,6 +74,31 @@ class ListingDetailPage extends StatelessWidget {
   }
 
   void _showOfferModal(BuildContext context) {
+    final authVM = context.read<AuthViewModel>();
+    final currentUserId = authVM.user?.uid;
+    
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please login to make an offer'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
+    if (currentUserId == listing.sellerId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You cannot make an offer on your own listing!'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
     final initialOffer = (listing.price * 0.88).round();
     final lowOffer = (listing.price * 0.82).round();
     final highOffer = (listing.price * 0.94).round();
@@ -297,10 +348,87 @@ class ListingDetailPage extends StatelessWidget {
 
   static String _formatPeso(num amount) => '₱${amount.round()}';
 
+  // FIXED: Now supports multiple images with PageView
+  Widget _buildListingImage(ListingModel listing) {
+  // Build unique list of images (avoid duplicates)
+  final Set<String> uniqueImages = {};
+  
+  // Add primary image if exists
+  if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
+    uniqueImages.add(listing.imageBase64!);
+  }
+  
+  // Add images from list
+  for (final img in listing.imageBase64List) {
+    if (img.isNotEmpty) {
+      uniqueImages.add(img);
+    }
+  }
+  
+  final images = uniqueImages.toList();
+
+  if (images.isEmpty) {
+    return Container(
+      color: AppColors.primaryLight,
+      child: Icon(
+        listing.category == 'Books' ? Icons.menu_book : Icons.devices,
+        size: 100,
+        color: AppColors.primary.withValues(alpha: 0.3),
+      ),
+    );
+  }
+
+  if (images.length == 1) {
+    return ImageService.base64ToImage(images.first, fit: BoxFit.cover);
+  }
+
+  // Show image indicator for multiple images
+  return Stack(
+    children: [
+      PageView.builder(
+        itemCount: images.length,
+        itemBuilder: (_, i) =>
+            ImageService.base64ToImage(images[i], fit: BoxFit.cover),
+      ),
+      Positioned(
+        bottom: 16,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.photo_library, size: 14, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  '${images.length} photos',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+  String _getSafeFirstChar(String str) {
+    if (str.isEmpty) return '?';
+    return str[0].toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
     final isSeller = authVM.user?.uid == listing.sellerId;
+    final isLoggedIn = authVM.user != null;
     final sellerUser = UserModel(
       uid: listing.sellerId,
       displayName: listing.sellerName,
@@ -311,7 +439,6 @@ class ListingDetailPage extends StatelessWidget {
       backgroundColor: Colors.white,
       body: CustomScrollView(
         slivers: [
-          // App Bar with Image
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
@@ -330,18 +457,7 @@ class ListingDetailPage extends StatelessWidget {
               ),
             ),
             flexibleSpace: FlexibleSpaceBar(
-              background: listing.imageUrl != null
-                  ? Image.network(listing.imageUrl!, fit: BoxFit.cover)
-                  : Container(
-                      color: AppColors.primaryLight,
-                      child: Icon(
-                        listing.category == 'Books'
-                            ? Icons.menu_book
-                            : Icons.devices,
-                        size: 100,
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                      ),
-                    ),
+              background: _buildListingImage(listing),
             ),
             actions: [
               IconButton(
@@ -354,15 +470,12 @@ class ListingDetailPage extends StatelessWidget {
               ),
             ],
           ),
-
-          // Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Price & Category
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -395,8 +508,6 @@ class ListingDetailPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Title
                   Text(
                     listing.title,
                     style: const TextStyle(
@@ -406,8 +517,6 @@ class ListingDetailPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-
-                  // Location
                   Row(
                     children: [
                       const Icon(
@@ -439,10 +548,7 @@ class ListingDetailPage extends StatelessWidget {
                       ),
                     ],
                   ),
-
                   const Divider(height: 40),
-
-                  // Seller Info
                   const Text(
                     'Seller Information',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -456,7 +562,6 @@ class ListingDetailPage extends StatelessWidget {
                         final currentUid = authVM.user?.uid;
                         if (currentUid != null &&
                             currentUid == listing.sellerId) {
-                          // Show sign out option
                           showModalBottomSheet(
                             context: context,
                             builder: (context) => SafeArea(
@@ -519,7 +624,7 @@ class ListingDetailPage extends StatelessWidget {
                         radius: 24,
                         backgroundColor: AppColors.primaryLight,
                         child: Text(
-                          listing.sellerName[0].toUpperCase(),
+                          _getSafeFirstChar(listing.sellerName),
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.bold,
@@ -546,10 +651,7 @@ class ListingDetailPage extends StatelessWidget {
                       child: const Text('View Profile'),
                     ),
                   ),
-
                   const Divider(height: 40),
-
-                  // Description
                   const Text(
                     'Description',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -563,25 +665,13 @@ class ListingDetailPage extends StatelessWidget {
                       height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _ListingIntentButton(label: 'Mine', onPressed: () {}),
-                      const SizedBox(width: 14),
-                      _ListingIntentButton(label: 'Steal', onPressed: () {}),
-                      const SizedBox(width: 14),
-                      _ListingIntentButton(label: 'Grab', onPressed: () {}),
-                    ],
-                  ),
-                  const SizedBox(height: 100), // Bottom padding for button
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
           ),
         ],
       ),
-      // Bottom Action Button
       bottomSheet: isSeller
           ? null
           : Container(
@@ -693,24 +783,7 @@ class _OfferListingSummary extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
-            child: listing.imageUrl != null
-                ? Image.network(
-                    listing.imageUrl!,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                  )
-                : Container(
-                    width: 48,
-                    height: 48,
-                    color: AppColors.primaryLight,
-                    child: Icon(
-                      listing.category == 'Books'
-                          ? Icons.menu_book
-                          : Icons.devices,
-                      color: AppColors.primary,
-                    ),
-                  ),
+            child: _buildThumbnailImage(),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -763,6 +836,36 @@ class _OfferListingSummary extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildThumbnailImage() {
+    if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
+      return ImageService.base64ToImage(
+        listing.imageBase64!,
+        width: 48,
+        height: 48,
+        fit: BoxFit.cover,
+      );
+    } else if (listing.imageBase64List.isNotEmpty) {
+      return ImageService.base64ToImage(
+        listing.imageBase64List.first,
+        width: 48,
+        height: 48,
+        fit: BoxFit.cover,
+      );
+    } else {
+      return Container(
+        width: 48,
+        height: 48,
+        color: AppColors.primaryLight,
+        child: Icon(
+          listing.category == 'Books'
+              ? Icons.menu_book
+              : Icons.devices,
+          color: AppColors.primary,
+        ),
+      );
+    }
   }
 }
 

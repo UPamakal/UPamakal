@@ -10,23 +10,20 @@ import 'view_models/home_view_model.dart';
 import 'view_models/chat_view_model.dart';
 import 'services/auth_service.dart';
 import 'services/listing_service.dart';
-import 'services/cloudinary_service.dart';
 import 'services/chat_service.dart';
 import 'services/fcm_service.dart';
+// Remove: import 'services/cloudinary_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load environment variables
   await dotenv.load(fileName: ".env");
   
-  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize Cloudinary
-  await CloudinaryService.initialize();
+  // Remove: await CloudinaryService.initialize();
   
   final authService = AuthService();
   final listingService = ListingService();
