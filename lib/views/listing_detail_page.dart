@@ -144,7 +144,12 @@ class ListingDetailPage extends StatelessWidget {
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 28),
+                  padding: EdgeInsets.fromLTRB(
+                    22,
+                    22,
+                    22,
+                    28 + MediaQuery.of(context).padding.bottom,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -665,7 +670,9 @@ class ListingDetailPage extends StatelessWidget {
                       height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 100),
+                  SizedBox(
+                    height: 100 + MediaQuery.of(context).padding.bottom,
+                  ),
                 ],
               ),
             ),
@@ -675,7 +682,12 @@ class ListingDetailPage extends StatelessWidget {
       bottomSheet: isSeller
           ? null
           : Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + MediaQuery.of(context).padding.bottom,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
