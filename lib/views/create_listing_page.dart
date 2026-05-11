@@ -106,9 +106,10 @@ class _CreateListingPageContentState extends State<_CreateListingPageContent> {
       appBar: _buildAppBar(),
       body: Consumer<CreateListingViewModel>(
         builder: (context, viewModel, child) {
+          final bottomInset = MediaQuery.of(context).padding.bottom;
           return Form(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+              padding: EdgeInsets.fromLTRB(16, 20, 16, 32 + bottomInset),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
