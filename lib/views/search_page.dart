@@ -754,6 +754,7 @@ class _SearchPageState extends State<SearchPage> {
   void _showCategoryPicker(BuildContext context, SearchViewModel searchVM) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -761,54 +762,55 @@ class _SearchPageState extends State<SearchPage> {
       // so checkmarks update without closing and reopening the sheet.
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sheetHandle(),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
-                    child: Text(
-                      'Select Category',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
+          final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom +
+              MediaQuery.of(ctx).padding.bottom;
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
+                _sheetHandle(),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
+                  child: Text(
+                    'Select Category',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
-                  _categoryOption(
-                    label: 'All Categories',
-                    icon: Icons.apps,
-                    isSelected: searchVM.selectedCategory == null,
+                ),
+                _categoryOption(
+                  label: 'All Categories',
+                  icon: Icons.apps,
+                  isSelected: searchVM.selectedCategory == null,
+                  onTap: () {
+                    // setSelectedCategory(null) has an early-return guard when
+                    // _selectedCategory is already null, which is fine — the
+                    // sheet still closes correctly.
+                    searchVM.setSelectedCategory(null);
+                    // No submitSearch() — setSelectedCategory calls
+                    // _applyFiltersAndSort internally (local filter, no network).
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ...SearchViewModel.categories.map((cat) {
+                  return _categoryOption(
+                    label: cat,
+                    icon: _categoryIcon(cat),
+                    isSelected: searchVM.selectedCategory == cat,
                     onTap: () {
-                      // setSelectedCategory(null) has an early-return guard when
-                      // _selectedCategory is already null, which is fine — the
-                      // sheet still closes correctly.
-                      searchVM.setSelectedCategory(null);
-                      // No submitSearch() — setSelectedCategory calls
-                      // _applyFiltersAndSort internally (local filter, no network).
+                      searchVM.setSelectedCategory(cat);
+                      // No submitSearch() — local filter only.
                       Navigator.pop(ctx);
                     },
-                  ),
-                  ...SearchViewModel.categories.map((cat) {
-                    return _categoryOption(
-                      label: cat,
-                      icon: _categoryIcon(cat),
-                      isSelected: searchVM.selectedCategory == cat,
-                      onTap: () {
-                        searchVM.setSelectedCategory(cat);
-                        // No submitSearch() — local filter only.
-                        Navigator.pop(ctx);
-                      },
-                    );
-                  }),
-                  const SizedBox(height: 8),
-                ],
-              ),
+                  );
+                }),
+                const SizedBox(height: 8),
+              ],
             ),
           );
         },
@@ -1050,59 +1052,61 @@ class _SearchPageState extends State<SearchPage> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _sheetHandle(),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
-                  child: Text(
-                    'Select Condition',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
+        final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom +
+            MediaQuery.of(ctx).padding.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              _sheetHandle(),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Text(
+                  'Select Condition',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
                   ),
                 ),
-                // "Any" option
-                _conditionOption(
-                  label: 'Any Condition',
-                  subtitle: 'Show all listings',
-                  icon: Icons.layers_outlined,
-                  isSelected: searchVM.selectedCondition == null,
+              ),
+              // "Any" option
+              _conditionOption(
+                label: 'Any Condition',
+                subtitle: 'Show all listings',
+                icon: Icons.layers_outlined,
+                isSelected: searchVM.selectedCondition == null,
+                onTap: () {
+                  searchVM.setSelectedCondition(null);
+                  // No submitSearch() — setSelectedCondition calls
+                  // _applyFiltersAndSort internally (local filter, no network).
+                  Navigator.pop(ctx);
+                },
+              ),
+              ...conditions.map((c) {
+                final (label, icon, subtitle) = c;
+                return _conditionOption(
+                  label: label,
+                  subtitle: subtitle,
+                  icon: icon,
+                  isSelected: searchVM.selectedCondition == label,
                   onTap: () {
-                    searchVM.setSelectedCondition(null);
-                    // No submitSearch() — setSelectedCondition calls
-                    // _applyFiltersAndSort internally (local filter, no network).
+                    searchVM.setSelectedCondition(label);
+                    // No submitSearch() — local filter only.
                     Navigator.pop(ctx);
                   },
-                ),
-                ...conditions.map((c) {
-                  final (label, icon, subtitle) = c;
-                  return _conditionOption(
-                    label: label,
-                    subtitle: subtitle,
-                    icon: icon,
-                    isSelected: searchVM.selectedCondition == label,
-                    onTap: () {
-                      searchVM.setSelectedCondition(label);
-                      // No submitSearch() — local filter only.
-                      Navigator.pop(ctx);
-                    },
-                  );
-                }),
-                const SizedBox(height: 8),
-              ],
-            ),
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
           ),
         );
       },
@@ -1171,77 +1175,79 @@ class _SearchPageState extends State<SearchPage> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _sheetHandle(),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
-                  child: Text(
-                    'Sort By',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
+        final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom +
+            MediaQuery.of(ctx).padding.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              _sheetHandle(),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Text(
+                  'Sort By',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
                   ),
                 ),
-                ...sortOptions.map((opt) {
-                  final (sortBy, label, icon) = opt;
-                  final isSelected = searchVM.sortBy == sortBy;
-                  return InkWell(
-                    onTap: () {
-                      searchVM.setSortBy(sortBy);
-                      // No submitSearch() — setSortBy calls _applyFiltersAndSort
-                      // internally (local re-sort only, no network call).
-                      Navigator.pop(ctx);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 14),
-                      child: Row(
-                        children: [
-                          Icon(
-                            icon,
-                            size: 22,
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: isSelected
-                                    ? AppColors.primary
-                                    : Colors.black87,
-                              ),
+              ),
+              ...sortOptions.map((opt) {
+                final (sortBy, label, icon) = opt;
+                final isSelected = searchVM.sortBy == sortBy;
+                return InkWell(
+                  onTap: () {
+                    searchVM.setSortBy(sortBy);
+                    // No submitSearch() — setSortBy calls _applyFiltersAndSort
+                    // internally (local re-sort only, no network call).
+                    Navigator.pop(ctx);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 14),
+                    child: Row(
+                      children: [
+                        Icon(
+                          icon,
+                          size: 22,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.black87,
                             ),
                           ),
-                          if (isSelected)
-                            const Icon(Icons.check,
-                                size: 18, color: AppColors.primary),
-                        ],
-                      ),
+                        ),
+                        if (isSelected)
+                          const Icon(Icons.check,
+                              size: 18, color: AppColors.primary),
+                      ],
                     ),
-                  );
-                }),
-                const SizedBox(height: 8),
-              ],
-            ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
           ),
         );
       },
