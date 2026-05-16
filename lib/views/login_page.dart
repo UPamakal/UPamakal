@@ -8,6 +8,7 @@ import 'signup_page.dart';
 import 'forgot_password_page.dart';
 import 'home_page.dart';
 import 'landing_page.dart';
+import 'profile_completion_page.dart';
 
 /// --------------------------------------------------------------------------
 /// LoginPage
@@ -85,12 +86,21 @@ class _LoginPageState extends State<LoginPage> {
     final authVM = context.read<AuthViewModel>();
     final success = await authVM.signInWithGoogle();
 
-    if (success && mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomePage()),
-        (_) => false,
-      );
-    } else if (!success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
+      if (authVM.needsProfileCompletion) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ProfileCompletionPage()),
+          (_) => false,
+        );
+      } else {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (_) => false,
+        );
+      }
+    } else {
       _showError(authVM.errorMessage ?? 'Google sign-in failed.');
     }
   }

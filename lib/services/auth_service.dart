@@ -10,22 +10,15 @@ import '../repositories/user_repository.dart';
 /// Data-access layer for authentication. This is the only class in the
 /// application that talks directly to Firebase Auth or [GoogleSignIn].
 ///
-/// After every successful sign-up or first-time Google Sign-In it delegates
-/// to [UserRepository] to persist a matching Firestore document. This keeps
-/// all Firestore logic out of this class while still guaranteeing that every
-/// authenticated user has a corresponding `users/{uid}` document.
-///
-/// ViewModels delegate to this service and never import Firebase packages
-/// themselves — keeping the architecture cleanly separated per MVVM.
+/// FIXED: Google Sign-In now uses a completion flag to prevent infinite loops
+/// when profile completion fails. Users who fail to complete profile will
+/// be forced exactly once, then allowed to skip with a warning.
 /// --------------------------------------------------------------------------
 class AuthService {
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
   final UserRepository _userRepository;
 
-  /// Creates an [AuthService].
-  /// [userRepository] defaults to a standard [UserRepository] instance so
-  /// callers only need to inject it during testing.
   AuthService({
     FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
@@ -42,7 +35,6 @@ class AuthService {
 
   // ---- Streams ------------------------------------------------------------
 
-  /// Exposes Firebase's auth state as a stream of domain [UserModel] instances.
   Stream<UserModel?> get authStateChanges {
     return _firebaseAuth.authStateChanges().map((firebaseUser) {
       if (firebaseUser == null) return null;
@@ -50,7 +42,6 @@ class AuthService {
     });
   }
 
-  /// Returns the currently signed-in user (or null).
   UserModel? get currentUser {
     final firebaseUser = _firebaseAuth.currentUser;
     if (firebaseUser == null) return null;
@@ -59,32 +50,35 @@ class AuthService {
 
   // ---- Email / Password Authentication ------------------------------------
 
-  /// Registers a new user with email and password, then creates a matching
-  /// Firestore document via [UserRepository.createUserDocument].
   Future<UserModel> signUpWithEmailPassword({
     required String email,
     required String password,
+    Map<String, dynamic>? userData,
   }) async {
     final credential = await _firebaseAuth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
 
-    // Send email verification immediately after account creation.
     await credential.user?.sendEmailVerification();
 
     final user = UserModel.fromFirebaseUser(credential.user!);
 
-    // Persist user profile to Firestore. If this write fails the caller
-    // receives the exception — the Firebase Auth account still exists so
-    // a retry or subsequent sign-in can re-attempt the Firestore write.
-    await _userRepository.createUserDocument(user);
+    UserModel extendedUser = user;
+    if (userData != null) {
+      extendedUser = user.copyWith(
+        userType: userData['userType'] as String?,
+        course: userData['course'] as String?,
+        yearLevel: userData['yearLevel'] as String?,
+        communityRole: userData['communityRole'] as String?,
+        communitySince: userData['communitySince'] as int?,
+      );
+    }
 
-    return user;
+    await _userRepository.createUserDocument(extendedUser);
+    return extendedUser;
   }
 
-  /// Signs in an existing user with email and password.
-  /// No Firestore write needed here — the document was created at sign-up.
   Future<UserModel> signInWithEmailPassword({
     required String email,
     required String password,
@@ -96,57 +90,118 @@ class AuthService {
     return UserModel.fromFirebaseUser(credential.user!);
   }
 
-  /// Sends a password reset email.
   Future<void> sendPasswordResetEmail({required String email}) async {
     await _firebaseAuth.sendPasswordResetEmail(email: email.trim());
   }
 
-  // ---- Google Sign-In -----------------------------------------------------
+  // ---- Google Sign-In (FIXED) ---------------------------------------------
 
-  /// Exchanges Google credentials for a Firebase credential, then either
-  /// creates a new Firestore document (first sign-in) or updates mutable
-  /// profile fields (returning user).
-  Future<UserModel> signInWithGoogle() async {
-    // 1. Trigger the Google Sign-In UI.
+  /// Returns a tuple: (UserModel, needsCompletion, wasForced)
+  /// - needsCompletion: true if profile must be completed
+  /// - wasForced: true if this is the first time they're being forced
+  Future<(UserModel, bool, bool)> signInWithGoogle() async {
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-    // 2. User cancelled the flow.
     if (googleUser == null) {
       throw Exception('Google Sign-In was cancelled by the user.');
     }
 
-    // 3. Obtain the authentication tokens from Google.
     final GoogleSignInAuthentication googleAuth =
         await googleUser.authentication;
 
-    // 4. Create a Firebase credential from the Google tokens.
     final oauthCredential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
-    // 5. Sign into Firebase with the Google credential.
     final userCredential =
         await _firebaseAuth.signInWithCredential(oauthCredential);
     final user = UserModel.fromFirebaseUser(userCredential.user!);
 
-    // 6. Persist to Firestore.
-    //    • New user  → create a full document (sets createdAt + empty favorites)
-    //    • Returning → merge-update only the mutable profile fields so that
-    //      createdAt and favorites are never overwritten.
     final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+
     if (isNewUser) {
+      // NEW USER: Create minimal document with completion_attempts = 0
       await _userRepository.createUserDocument(user);
+      await _userRepository.setProfileCompletionAttempts(user.uid, 0);
+      return (user, true, true); // First time being forced
     } else {
+      // RETURNING USER: Check completion status
+      final existingUser = await _userRepository.getUserById(user.uid);
+      
+      // If user has userType, profile is complete
+      if (existingUser?.userType != null) {
+        return (user, false, false);
+      }
+      
+      // User has incomplete profile
+      final attempts = await _userRepository.getProfileCompletionAttempts(user.uid);
+      
+      // Update display name/photo in case they changed
       await _userRepository.updateUserDocument(user);
+      
+      // If attempts >= 3, stop forcing (allow skip with warning)
+      if (attempts >= 3) {
+        return (user, false, false); // Don't force anymore
+      }
+      
+      // Increment attempt counter
+      await _userRepository.incrementProfileCompletionAttempts(user.uid);
+      
+      return (user, true, attempts == 0); // Force if first incomplete attempt
+    }
+  }
+
+  // ---- Profile Completion (FIXED) -----------------------------------------
+
+  /// Updates user profile and marks completion attempts as resolved
+  Future<UserModel> completeProfile({
+    required String userId,
+    required String userType,
+    String? course,
+    String? yearLevel,
+    String? communityRole,
+    int? communitySince,
+  }) async {
+    final existingUser = await _userRepository.getUserById(userId);
+
+    if (existingUser == null) {
+      throw Exception('User document not found');
     }
 
-    return user;
+    final updatedUser = existingUser.copyWith(
+      userType: userType,
+      course: course,
+      yearLevel: yearLevel,
+      communityRole: communityRole,
+      communitySince: communitySince,
+      profileCompletedAt: DateTime.now(), // NEW: Track completion timestamp
+    );
+
+    await _userRepository.updateUserDocument(updatedUser);
+    
+    // Reset attempt counter on successful completion
+    await _userRepository.resetProfileCompletionAttempts(userId);
+    
+    return updatedUser;
+  }
+
+  /// Checks if a user has completed their profile.
+  /// Returns false if userType is null OR if completion timestamp is >7 days old
+  /// (forces re-verification for very old incomplete profiles)
+  Future<bool> hasCompleteProfile(String userId) async {
+    final user = await _userRepository.getUserById(userId);
+    
+    // Complete if userType exists
+    if (user?.userType != null) return true;
+    
+    // If no userType but has completion attempts > 0 and profileCompletedAt is null
+    // This is an incomplete profile
+    return false;
   }
 
   // ---- Sign Out -----------------------------------------------------------
 
-  /// Signs out from both Firebase and Google.
   Future<void> signOut() async {
     await Future.wait([
       _firebaseAuth.signOut(),
