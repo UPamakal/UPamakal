@@ -16,6 +16,7 @@ import '../services/listing_service.dart';
 ///   - Form validation
 ///   - Submit to Firestore
 ///   - Save drafts
+///   - Optional custom offer prices (Mine, Steal, Grab)
 /// --------------------------------------------------------------------------
 class CreateListingPage extends StatelessWidget {
   const CreateListingPage({super.key});
@@ -186,6 +187,10 @@ class _CreateListingPageContentState extends State<_CreateListingPageContent> {
                   _buildSectionLabel('Description'),
                   const SizedBox(height: 8),
                   _buildDescriptionField(viewModel),
+                  const SizedBox(height: 20),
+
+                  // Optional offer prices section
+                  _buildOptionalPricesSection(viewModel),
                   const SizedBox(height: 32),
 
                   _buildSubmitButton(viewModel),
@@ -236,6 +241,7 @@ class _CreateListingPageContentState extends State<_CreateListingPageContent> {
     );
   }
 
+  // ----- Photo Section (unchanged from original) -----
   Widget _buildPhotoSection(CreateListingViewModel viewModel) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,6 +370,104 @@ class _CreateListingPageContentState extends State<_CreateListingPageContent> {
     );
   }
 
+  // ----- Optional Offer Prices Section (NEW) -----
+  Widget _buildOptionalPricesSection(CreateListingViewModel viewModel) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Custom Offer Prices (Optional)',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Set suggested prices for quick action buttons (Mine, Steal, Grab)',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildOptionalPriceField(
+                  controller: viewModel.minePriceController,
+                  label: 'Mine',
+                  hint: 'e.g., 200',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildOptionalPriceField(
+                  controller: viewModel.stealPriceController,
+                  label: 'Steal',
+                  hint: 'e.g., 250',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildOptionalPriceField(
+                  controller: viewModel.grabPriceController,
+                  label: 'Grab',
+                  hint: 'e.g., 300',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionalPriceField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+        ),
+        const SizedBox(height: 4),
+        TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          ],
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixText: '₱ ',
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ----- Form Fields (unchanged except using viewModel) -----
   Widget _buildItemNameField(CreateListingViewModel viewModel) {
     return TextFormField(
       controller: viewModel.titleController,
@@ -475,7 +579,7 @@ class _CreateListingPageContentState extends State<_CreateListingPageContent> {
             borderRadius: BorderRadius.circular(14),
           ),
           elevation: 0,
-          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+          disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
         ),
         child: viewModel.isSubmitting
             ? const SizedBox(

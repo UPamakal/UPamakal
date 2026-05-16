@@ -9,7 +9,11 @@ import 'chat_detail_page.dart';
 import 'profile_page.dart';
 import 'login_page.dart';
 import '../services/image_service.dart';
-import '../widgets/adaptive_favorite_button.dart';
+import '../widgets/favorite_button.dart';
+
+const double _defaultMineMultiplier = 0.85;
+const double _defaultStealMultiplier = 1.25;
+const double _defaultGrabMultiplier = 1.50;
 
 class ListingDetailPage extends StatelessWidget {
   final ListingModel listing;
@@ -74,42 +78,29 @@ class ListingDetailPage extends StatelessWidget {
     }
   }
 
-  void _showOfferModal(BuildContext context) {
+  void _showOfferModal(BuildContext context, {int? presetAmount}) {
     final authVM = context.read<AuthViewModel>();
     final currentUserId = authVM.user?.uid;
     
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please login to make an offer'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+        const SnackBar(content: Text('Please login to make an offer')),
       );
       return;
     }
     
     if (currentUserId == listing.sellerId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You cannot make an offer on your own listing!'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+        const SnackBar(content: Text('You cannot make an offer on your own listing!')),
       );
       return;
     }
     
-    final initialOffer = (listing.price * 0.88).round();
-    final lowOffer = (listing.price * 0.82).round();
-    final highOffer = (listing.price * 0.94).round();
-    final amountController = TextEditingController(
-      text: initialOffer.toString(),
-    );
-    final messageController = TextEditingController(
-      text:
-          'Hi! I\'m interested in buying this today. Is ${_formatPeso(initialOffer)} okay?',
-    );
+    final initialOffer = presetAmount ?? (listing.price * 0.88).round();
+    final lowOffer = (listing.price * 0.75).round();
+    final highOffer = (listing.price * 0.90).round();
+    final amountController = TextEditingController(text: initialOffer.toString());
+    final messageController = TextEditingController();
 
     showModalBottomSheet<void>(
       context: context,
@@ -127,8 +118,6 @@ class ListingDetailPage extends StatelessWidget {
                 amountController.selection = TextSelection.fromPosition(
                   TextPosition(offset: amountController.text.length),
                 );
-                messageController.text =
-                    'Hi! I\'m interested in buying this today. Is ${_formatPeso(offer)} okay?';
               });
             }
 
@@ -137,209 +126,94 @@ class ListingDetailPage extends StatelessWidget {
                 bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.82,
-                ),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    22,
-                    22,
-                    22,
-                    28 + MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Make an offer',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Make an Offer',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    _OfferListingSummary(listing: listing),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        prefixText: '₱ ',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Send your proposed price to the seller',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _OfferChip(
+                          label: '₱$lowOffer',
+                          selected: selectedOffer == lowOffer,
+                          onPressed: () => updateOffer(lowOffer),
+                        ),
+                        const SizedBox(width: 12),
+                        _OfferChip(
+                          label: '₱$initialOffer',
+                          selected: selectedOffer == initialOffer,
+                          onPressed: () => updateOffer(initialOffer),
+                        ),
+                        const SizedBox(width: 12),
+                        _OfferChip(
+                          label: '₱$highOffer',
+                          selected: selectedOffer == highOffer,
+                          onPressed: () => updateOffer(highOffer),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: messageController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Optional message to seller...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      const SizedBox(height: 28),
-                      _OfferListingSummary(listing: listing),
-                      const SizedBox(height: 28),
-                      Container(
-                        width: 210,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.12),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              '₱',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 20),
-                            SizedBox(
-                              width: 90,
-                              child: TextField(
-                                controller: amountController,
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Offer sent: ₱${amountController.text}'),
                                 ),
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                ),
-                                onChanged: (value) {
-                                  final parsed = int.tryParse(value);
-                                  if (parsed != null) {
-                                    selectedOffer = parsed;
-                                  }
-                                },
-                              ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _OfferChip(
-                            label: _formatPeso(lowOffer),
-                            selected: selectedOffer == lowOffer,
-                            onPressed: () => updateOffer(lowOffer),
-                          ),
-                          const SizedBox(width: 12),
-                          _OfferChip(
-                            label: _formatPeso(initialOffer),
-                            selected: selectedOffer == initialOffer,
-                            onPressed: () => updateOffer(initialOffer),
-                          ),
-                          const SizedBox(width: 12),
-                          _OfferChip(
-                            label: _formatPeso(highOffer),
-                            selected: selectedOffer == highOffer,
-                            onPressed: () => updateOffer(highOffer),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 22),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: RichText(
-                          text: const TextSpan(
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            children: [
-                              TextSpan(text: 'Message to seller '),
-                              TextSpan(
-                                text: '(Optional)',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.normal,
-                                ),
-                              ),
-                            ],
+                            child: const Text('Send Offer'),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: messageController,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFFF5F5F5),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Offer sent: ${_formatPeso(selectedOffer)}',
-                                ),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: const Text(
-                            'Send Offer',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.primary),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             );
@@ -352,179 +226,34 @@ class ListingDetailPage extends StatelessWidget {
     });
   }
 
-  static String _formatPeso(num amount) => '₱${amount.round()}';
-
-  Widget _buildListingImage(ListingModel listing, BuildContext context) {
-    // Build unique list of images (avoid duplicates)
-    final Set<String> uniqueImages = {};
-    
-    // Add primary image if exists
-    if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
-      uniqueImages.add(listing.imageBase64!);
-    }
-    
-    // Add images from list
-    for (final img in listing.imageBase64List) {
-      if (img.isNotEmpty) {
-        uniqueImages.add(img);
-      }
-    }
-    
-    final images = uniqueImages.toList();
-    final primaryImage = images.isNotEmpty ? images.first : null;
-
-    if (images.isEmpty) {
-      return Container(
-        color: AppColors.primaryLight,
-        child: Stack(
-          children: [
-            Center(
-              child: Icon(
-                listing.category == 'Books' ? Icons.menu_book : Icons.devices,
-                size: 100,
-                color: AppColors.primary.withValues(alpha: 0.3),
-              ),
-            ),
-            // Back button overlay (left side)
-            Positioned(
-              top: 48,
-              left: 18,
-              child: AdaptiveIconButton(
-                icon: Icons.arrow_back,
-                onPressed: () => Navigator.of(context).pop(),
-                imageBase64: primaryImage,
-                size: 40,
-                iconSize: 20,
-              ),
-            ),
-            // Action buttons overlay (right side)
-            Positioned(
-              top: 48,
-              right: 18,
-              child: Row(
-                children: [
-                  AdaptiveIconButton(
-                    icon: Icons.share,
-                    onPressed: () {},
-                    size: 40,
-                    iconSize: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  if (context.read<AuthViewModel>().user != null)
-                    AdaptiveFavoriteButton(
-                      listingId: listing.id,
-                      userId: context.read<AuthViewModel>().user!.uid,
-                      imageBase64: null,
-                      size: 20,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Stack(
-      children: [
-        PageView.builder(
-          itemCount: images.length,
-          itemBuilder: (_, i) => ImageService.base64ToImage(images[i], fit: BoxFit.cover),
-        ),
-        // Gradient overlay - now properly layered but DOES NOT cover buttons
-        // because buttons are rendered AFTER this gradient in the Stack
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 120,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.35),
-                  Colors.transparent,
-                ],
-              ),
-            ),
+  void _confirmQuickOffer(BuildContext context, String action, int amount) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$action this item?'),
+        content: Text('Are you sure you want to $action this item for ₱$amount?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-        ),
-        
-        // Image counter indicator
-        if (images.length > 1)
-          Positioned(
-            bottom: 16,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$action offer of ₱$amount sent to seller!'),
+                  backgroundColor: Colors.green.shade700,
+                  behavior: SnackBarBehavior.floating,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.photo_library, size: 14, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${images.length} photos',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+              );
+              // You can add actual offer sending logic here if needed
+            },
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF8B0000)),
+            child: Text(action),
           ),
-        
-        // Back button overlay (left side) - rendered AFTER gradient
-        Positioned(
-          top: 48,
-          left: 16,
-          child: AdaptiveIconButton(
-            icon: Icons.arrow_back,
-            onPressed: () => Navigator.of(context).pop(),
-            imageBase64: primaryImage,
-            size: 40,
-            iconSize: 20,
-          ),
-        ),
-        
-        // Action buttons overlay (right side) - rendered AFTER gradient
-        Positioned(
-          top: 48,
-          right: 16,
-          child: Row(
-            children: [
-              AdaptiveIconButton(
-                icon: Icons.share,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Share functionality coming soon!'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                },
-                imageBase64: primaryImage,
-                size: 40,
-                iconSize: 20,
-              ),
-              const SizedBox(width: 12),
-              if (context.read<AuthViewModel>().user != null)
-                AdaptiveFavoriteButton(
-                  listingId: listing.id,
-                  userId: context.read<AuthViewModel>().user!.uid,
-                  imageBase64: primaryImage,
-                  size: 20,
-                ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -537,327 +266,406 @@ class ListingDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
     final isSeller = authVM.user?.uid == listing.sellerId;
-    final isLoggedIn = authVM.user != null;
-    final primaryImage = listing.imageBase64 ?? listing.imageBase64List.firstOrNull;
+    final currentUserId = authVM.user?.uid;
+    final primaryImage = listing.imageBase64 ??
+        (listing.imageBase64List.isNotEmpty ? listing.imageBase64List.first : null);
     final sellerUser = UserModel(
       uid: listing.sellerId,
       displayName: listing.sellerName,
       email: null,
     );
 
+    final mineAmount = listing.minePrice?.toInt() ?? (listing.price * _defaultMineMultiplier).round();
+    final stealAmount = listing.stealPrice?.toInt() ?? (listing.price * _defaultStealMultiplier).round();
+    final grabAmount = listing.grabPrice?.toInt() ?? (listing.price * _defaultGrabMultiplier).round();
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 300,
-            pinned: true,
-            backgroundColor: AppColors.primary,
-            automaticallyImplyLeading: false,
-            // REMOVED: leading property - back button now in image overlay
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildListingImage(listing, context),
-            ),
-            actions: const [], // Actions moved to image overlay for adaptability
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
+      backgroundColor: const Color(0xFFF5F2EE),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Stack(
                     children: [
-                      Text(
-                        listing.formattedPrice,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(24),
+                          bottomRight: Radius.circular(24),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryLight,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          listing.category,
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    listing.title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        listing.location,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      const Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        listing.timeAgo,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 40),
-                  const Text(
-                    'Seller Information',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: InkWell(
-                      borderRadius: BorderRadius.circular(48),
-                      onTap: () async {
-                        final currentUid = authVM.user?.uid;
-                        if (currentUid != null &&
-                            currentUid == listing.sellerId) {
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (context) => SafeArea(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    leading: const Icon(
-                                      Icons.logout,
-                                      color: Colors.redAccent,
-                                    ),
-                                    title: const Text(
-                                      'Sign Out',
-                                      style: TextStyle(color: Colors.redAccent),
-                                    ),
-                                    onTap: () async {
-                                      Navigator.pop(context);
-                                      try {
-                                        await authVM.signOut();
-                                        if (!context.mounted) return;
-                                        Navigator.of(
-                                          context,
-                                        ).pushAndRemoveUntil(
-                                          MaterialPageRoute(
-                                            builder: (_) => const LoginPage(),
-                                          ),
-                                          (_) => false,
-                                        );
-                                      } catch (e) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Failed to sign out: $e',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
+                        child: primaryImage != null
+                            ? ImageService.base64ToImage(
+                                primaryImage,
+                                height: 380,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                height: 380,
+                                color: AppColors.primaryLight,
+                                child: Center(
+                                  child: Icon(
+                                    listing.category == 'Books' ? Icons.menu_book : Icons.devices,
+                                    size: 80,
+                                    color: AppColors.primary.withOpacity(0.3),
                                   ),
-                                ],
+                                ),
                               ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 120,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.35),
+                                Colors.transparent,
+                              ],
                             ),
-                          );
-                        } else {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ProfilePage(
-                                sellerId: listing.sellerId,
-                                sellerUser: sellerUser,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 48,
+                        left: 16,
+                        child: _FloatingActionCircle(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        ),
+                      ),
+                      Positioned(
+                        top: 48,
+                        right: 16,
+                        child: Row(
+                          children: [
+                            _FloatingActionCircle(
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Share coming soon'),
+                                    duration: Duration(seconds: 1),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                              child: const Icon(Icons.share, color: Colors.white, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            if (currentUserId != null)
+                              _FloatingActionCircle(
+                                onTap: () {},
+                                child: FavoriteButton(
+                                  listingId: listing.id,
+                                  userId: currentUserId,
+                                  size: 20,
+                                ),
                               ),
-                            ),
-                          );
-                        }
-                      },
-                      child: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: AppColors.primaryLight,
-                        child: Text(
-                          _getSafeFirstChar(listing.sellerName),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          listing.title,
                           style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF111111),
+                            height: 1.2,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Text(
+                              listing.formattedPrice,
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF8B0000),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                listing.condition,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF7A7A7A),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 16, color: Color(0xFF7A7A7A)),
+                            const SizedBox(width: 6),
+                            Text(listing.location, style: const TextStyle(fontSize: 14, color: Color(0xFF7A7A7A))),
+                            const SizedBox(width: 20),
+                            const Icon(Icons.access_time, size: 16, color: Color(0xFF7A7A7A)),
+                            const SizedBox(width: 6),
+                            Text(listing.timeAgo, style: const TextStyle(fontSize: 14, color: Color(0xFF7A7A7A))),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Description',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111111)),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          listing.description,
+                          style: const TextStyle(fontSize: 15, height: 1.5, color: Color(0xFF111111)),
+                        ),
+                        const SizedBox(height: 16),
+                        RichText(
+                          text: const TextSpan(
+                            style: TextStyle(fontSize: 14, color: Color(0xFF111111)),
+                            children: [
+                              TextSpan(text: 'Meetup preference: ', style: TextStyle(fontWeight: FontWeight.w700)),
+                              TextSpan(text: 'On-campus, near the library', style: TextStyle(fontWeight: FontWeight.normal)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2)),
+                        ],
                       ),
-                    ),
-                    title: Text(
-                      listing.sellerName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: const Text('Member since 2023'),
-                    trailing: OutlinedButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ProfilePage(
-                              sellerId: listing.sellerId,
-                              sellerUser: sellerUser,
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: AppColors.primaryLight,
+                            child: Text(
+                              _getSafeFirstChar(listing.sellerName),
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.primary),
                             ),
                           ),
-                        );
-                      },
-                      child: const Text('View Profile'),
-                    ),
-                  ),
-                  const Divider(height: 40),
-                  const Text(
-                    'Description',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    listing.description,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.black87,
-                      height: 1.5,
-                    ),
-                  ),
-                  SizedBox(
-                    height: 100 + MediaQuery.of(context).padding.bottom,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomSheet: isSeller
-          ? null
-          : Container(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                20 + MediaQuery.of(context).padding.bottom,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _openChat(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: const BorderSide(color: AppColors.primary),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.chat_bubble_outline),
-                          SizedBox(width: 8),
-                          Text(
-                            'Chat Seller',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  listing.sellerName,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111111)),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text('Member since 2023', style: TextStyle(fontSize: 13, color: Color(0xFF7A7A7A))),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.star, color: Colors.amber, size: 14),
+                                SizedBox(width: 4),
+                                Text('4.9', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _showOfferModal(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProfilePage(sellerId: listing.sellerId, sellerUser: sellerUser),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF8B0000),
+                        side: const BorderSide(color: Color(0xFFE5E5E5)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
                       ),
-                      child: const Text(
-                        'Make Offer',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: const Text('View Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                     ),
                   ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.of(context).padding.bottom),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        _buildOfferChip(context, 'Mine', mineAmount),
+                        const SizedBox(width: 12),
+                        _buildOfferChip(context, 'Steal', stealAmount),
+                        const SizedBox(width: 12),
+                        _buildOfferChip(context, 'Grab', grabAmount),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: isSeller ? null : () => _openChat(context),
+                            icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                            label: const Text('Chat Seller'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF8B0000),
+                              side: const BorderSide(color: Color(0xFF8B0000)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(40),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: isSeller ? null : () => _showOfferModal(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF8B0000),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(40),
+                              ),
+                              elevation: 2,
+                              shadowColor: const Color(0xFF8B0000).withOpacity(0.3),
+                            ),
+                            child: const Text('Make Offer', style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfferChip(BuildContext context, String label, int amount) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _confirmQuickOffer(context, label, amount),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: const Color(0xFF8B0000)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 1))],
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Color(0xFF8B0000), fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+                Text(
+                  '₱$amount',
+                  style: const TextStyle(color: Color(0xFF8B0000), fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _ListingIntentButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onPressed;
-
-  const _ListingIntentButton({required this.label, required this.onPressed});
+class _FloatingActionCircle extends StatelessWidget {
+  final VoidCallback onTap;
+  final Widget child;
+  const _FloatingActionCircle({required this.onTap, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        side: const BorderSide(color: AppColors.primary),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.45),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        ),
+        child: Center(child: child),
       ),
     );
   }
@@ -865,104 +673,40 @@ class _ListingIntentButton extends StatelessWidget {
 
 class _OfferListingSummary extends StatelessWidget {
   final ListingModel listing;
-
   const _OfferListingSummary({required this.listing});
 
   @override
   Widget build(BuildContext context) {
+    final primaryImage = listing.imageBase64 ??
+        (listing.imageBase64List.isNotEmpty ? listing.imageBase64List.first : null);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFF5F2EE),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: _buildThumbnailImage(),
+            borderRadius: BorderRadius.circular(8),
+            child: primaryImage != null
+                ? ImageService.base64ToImage(primaryImage, width: 48, height: 48, fit: BoxFit.cover)
+                : Container(width: 48, height: 48, color: AppColors.primaryLight),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  listing.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Seller: ${listing.sellerName}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14,
-                  ),
-                ),
+                Text(listing.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Seller: ${listing.sellerName}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                listing.formattedPrice,
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Text(
-                'ORIGINAL',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+          Text(listing.formattedPrice, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
         ],
       ),
     );
-  }
-
-  Widget _buildThumbnailImage() {
-    if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
-      return ImageService.base64ToImage(
-        listing.imageBase64!,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-      );
-    } else if (listing.imageBase64List.isNotEmpty) {
-      return ImageService.base64ToImage(
-        listing.imageBase64List.first,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-      );
-    } else {
-      return Container(
-        width: 48,
-        height: 48,
-        color: AppColors.primaryLight,
-        child: Icon(
-          listing.category == 'Books'
-              ? Icons.menu_book
-              : Icons.devices,
-          color: AppColors.primary,
-        ),
-      );
-    }
   }
 }
 
@@ -970,12 +714,7 @@ class _OfferChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onPressed;
-
-  const _OfferChip({
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-  });
+  const _OfferChip({required this.label, required this.selected, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {

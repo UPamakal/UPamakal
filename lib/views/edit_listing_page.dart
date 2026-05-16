@@ -12,8 +12,8 @@ import '../view_models/auth_view_model.dart';
 /// --------------------------------------------------------------------------
 /// Allows sellers to edit their existing listings.
 /// Features:
-///   - Edit title, description, price, category, condition
-///   - Update location
+///   - Edit title, description, price, category, condition, location
+///   - Edit optional offer prices (Mine, Steal, Grab)
 ///   - Save changes to Firestore
 /// --------------------------------------------------------------------------
 class EditListingPage extends StatefulWidget {
@@ -33,6 +33,9 @@ class _EditListingPageState extends State<EditListingPage> {
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _locationController = TextEditingController();
+  final _minePriceController = TextEditingController();
+  final _stealPriceController = TextEditingController();
+  final _grabPriceController = TextEditingController();
   
   String _selectedCategory = '';
   String _selectedCondition = '';
@@ -44,8 +47,8 @@ class _EditListingPageState extends State<EditListingPage> {
     'Electronics',
     'Clothing',
     'Food',
+    'Furniture',
     'Sports',
-    'furniture',
     'Services',
     'Other',
   ];
@@ -62,6 +65,17 @@ class _EditListingPageState extends State<EditListingPage> {
     _locationController.text = widget.listing.location;
     _selectedCategory = widget.listing.category;
     _selectedCondition = widget.listing.condition;
+    
+    // Load optional offer prices if they exist
+    if (widget.listing.minePrice != null) {
+      _minePriceController.text = widget.listing.minePrice!.toInt().toString();
+    }
+    if (widget.listing.stealPrice != null) {
+      _stealPriceController.text = widget.listing.stealPrice!.toInt().toString();
+    }
+    if (widget.listing.grabPrice != null) {
+      _grabPriceController.text = widget.listing.grabPrice!.toInt().toString();
+    }
   }
 
   @override
@@ -70,6 +84,9 @@ class _EditListingPageState extends State<EditListingPage> {
     _descriptionController.dispose();
     _priceController.dispose();
     _locationController.dispose();
+    _minePriceController.dispose();
+    _stealPriceController.dispose();
+    _grabPriceController.dispose();
     super.dispose();
   }
 
@@ -81,6 +98,10 @@ class _EditListingPageState extends State<EditListingPage> {
       setState(() => _errorMessage = 'Please enter a valid price');
       return;
     }
+
+    final minePrice = double.tryParse(_minePriceController.text);
+    final stealPrice = double.tryParse(_stealPriceController.text);
+    final grabPrice = double.tryParse(_grabPriceController.text);
 
     setState(() {
       _isSubmitting = true;
@@ -96,6 +117,9 @@ class _EditListingPageState extends State<EditListingPage> {
         location: _locationController.text.trim(),
         category: _selectedCategory,
         condition: _selectedCondition,
+        minePrice: minePrice,
+        stealPrice: stealPrice,
+        grabPrice: grabPrice,
       );
 
       if (mounted) {
@@ -290,7 +314,11 @@ class _EditListingPageState extends State<EditListingPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+
+              // Optional offer prices section
+              _buildOptionalPricesSection(),
+              const SizedBox(height: 20),
 
               // Photo notice
               Container(
@@ -450,6 +478,102 @@ class _EditListingPageState extends State<EditListingPage> {
           );
         }).toList(),
       ),
+    );
+  }
+
+  Widget _buildOptionalPricesSection() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Custom Offer Prices (Optional)',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Set suggested prices for quick action buttons (Mine, Steal, Grab)',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildOptionalPriceField(
+                  controller: _minePriceController,
+                  label: 'Mine',
+                  hint: 'e.g., 200',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildOptionalPriceField(
+                  controller: _stealPriceController,
+                  label: 'Steal',
+                  hint: 'e.g., 250',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildOptionalPriceField(
+                  controller: _grabPriceController,
+                  label: 'Grab',
+                  hint: 'e.g., 300',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionalPriceField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+        ),
+        const SizedBox(height: 4),
+        TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          ],
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixText: '₱ ',
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

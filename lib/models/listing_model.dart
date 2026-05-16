@@ -6,15 +6,20 @@ class ListingModel {
   final String description;
   final double price;
   final String location;
-  final String? imageBase64; // Primary image as Base64
+  final String? imageBase64;
   final String category;
   final String condition;
   final String sellerId;
   final String sellerName;
   final DateTime createdAt;
   final bool isSold;
-  final List<String> imageBase64List; // Multiple images as Base64
+  final List<String> imageBase64List;
   final bool isSaved;
+  
+  // Custom offer prices
+  final double? minePrice;
+  final double? stealPrice;
+  final double? grabPrice;
 
   const ListingModel({
     required this.id,
@@ -31,6 +36,9 @@ class ListingModel {
     this.isSold = false,
     this.imageBase64List = const [],
     this.isSaved = false,
+    this.minePrice,
+    this.stealPrice,
+    this.grabPrice,
   });
 
   static DateTime _convertTimestamp(dynamic timestamp) {
@@ -56,6 +64,9 @@ class ListingModel {
       isSold: data['isSold'] ?? false,
       imageBase64List: List<String>.from(data['imageBase64List'] ?? []),
       isSaved: data['isSaved'] ?? false,
+      minePrice: (data['minePrice'] as num?)?.toDouble(),
+      stealPrice: (data['stealPrice'] as num?)?.toDouble(),
+      grabPrice: (data['grabPrice'] as num?)?.toDouble(),
     );
   }
 
@@ -73,6 +84,9 @@ class ListingModel {
       'createdAt': createdAt,
       'isSold': isSold,
       'imageBase64List': imageBase64List,
+      if (minePrice != null) 'minePrice': minePrice,
+      if (stealPrice != null) 'stealPrice': stealPrice,
+      if (grabPrice != null) 'grabPrice': grabPrice,
     };
   }
 
@@ -91,6 +105,9 @@ class ListingModel {
     bool? isSold,
     List<String>? imageBase64List,
     bool? isSaved,
+    double? minePrice,
+    double? stealPrice,
+    double? grabPrice,
   }) {
     return ListingModel(
       id: id ?? this.id,
@@ -107,6 +124,9 @@ class ListingModel {
       isSold: isSold ?? this.isSold,
       imageBase64List: imageBase64List ?? this.imageBase64List,
       isSaved: isSaved ?? this.isSaved,
+      minePrice: minePrice ?? this.minePrice,
+      stealPrice: stealPrice ?? this.stealPrice,
+      grabPrice: grabPrice ?? this.grabPrice,
     );
   }
 
