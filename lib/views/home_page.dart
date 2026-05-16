@@ -13,6 +13,9 @@ import 'chat_list_page.dart';
 import 'profile_page.dart';
 import 'listing_detail_page.dart';
 import 'search_page.dart';
+import '../widgets/favorite_button.dart';
+import '../views/favorites_page.dart';
+import 'login_page.dart';
 
 /// --------------------------------------------------------------------------
 /// HomePage - Marketplace Listings
@@ -77,6 +80,93 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _openSearchPage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider(
+              create: (ctx) => SearchViewModel(
+                listingService: ctx.read<ListingService>(),
+              ),
+            ),
+          ],
+          child: const SearchPage(),
+        ),
+      ),
+    );
+  }
+
+  void _showProfileMenu(BuildContext context, UserModel? user, AuthViewModel authVM) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('View Profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.favorite_border),
+                title: const Text('My Favorites'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FavoritesPage()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Settings coming soon!')),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.redAccent),
+                title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  try {
+                    await authVM.signOut();
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                      (_) => false,
+                    );
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to sign out: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
@@ -117,7 +207,7 @@ class _HomePageState extends State<HomePage> {
                   SliverToBoxAdapter(
                     child: _buildLatestListingsHeader(context),
                   ),
-                  _buildListingsSliver(context, homeVM),
+                  _buildListingsSliver(context, homeVM, user),
                   const SliverToBoxAdapter(child: SizedBox(height: 90)),
                 ],
               ),
@@ -375,7 +465,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildListingsSliver(BuildContext context, HomeViewModel homeVM) {
+  Widget _buildListingsSliver(BuildContext context, HomeViewModel homeVM, UserModel? user) {
     if (homeVM.isLoading) {
       return const SliverFillRemaining(
         child: Center(child: CircularProgressIndicator()),
@@ -451,7 +541,7 @@ class _HomePageState extends State<HomePage> {
       sliver: SliverGrid(
         delegate: SliverChildBuilderDelegate(
           (context, index) =>
-              _buildListingCard(context, homeVM.listings[index], homeVM),
+              _buildListingCard(context, homeVM.listings[index], homeVM, user),
           childCount: homeVM.listings.length,
         ),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -464,11 +554,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // FIXED: Proper indentation
   Widget _buildListingCard(
     BuildContext context,
     ListingModel listing,
     HomeViewModel homeVM,
+    UserModel? user,
   ) {
     return GestureDetector(
       onTap: () {
@@ -523,30 +613,47 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
+                  // FIX: Enhanced favorite button with always-visible dark background
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: GestureDetector(
-                      onTap: () => homeVM.saveListing(listing.id),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 4,
-                            ),
-                          ],
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 1.5,
                         ),
-                        child: const Icon(
-                          Icons.favorite_border,
-                          size: 18,
-                          color: AppColors.primary,
-                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
+                      child: user != null
+                          ? FavoriteButton(
+                              listingId: listing.id,
+                              userId: user.uid,
+                              size: 20,
+                            )
+                          : Container(
+                              width: 38,
+                              height: 38,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.favorite_border,
+                                size: 20,
+                                color: AppColors.primary,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -627,25 +734,20 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // FIXED: Now checks both imageBase64 and imageBase64List
   Widget _buildListingImage(ListingModel listing) {
     if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
       return ImageService.base64ToImage(listing.imageBase64!, fit: BoxFit.cover);
     } else if (listing.imageBase64List.isNotEmpty) {
       return ImageService.base64ToImage(listing.imageBase64List.first, fit: BoxFit.cover);
     } else {
-      return _categoryIcon(listing);
+      return Center(
+        child: Icon(
+          listing.category == 'Books' ? Icons.menu_book : Icons.devices,
+          size: 52,
+          color: AppColors.primary.withValues(alpha: 0.35),
+        ),
+      );
     }
-  }
-
-  Widget _categoryIcon(ListingModel listing) {
-    return Center(
-      child: Icon(
-        listing.category == 'Books' ? Icons.menu_book : Icons.devices,
-        size: 52,
-        color: AppColors.primary.withValues(alpha: 0.35),
-      ),
-    );
   }
 
   Widget _buildBottomNavBar(BuildContext context, HomeViewModel homeVM) {
@@ -764,137 +866,11 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(
               fontSize: 11,
               color: color,
-              fontWeight:
-                  isSelected ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ],
       ),
-    );
-  }
-
-  /// Pushes [SearchPage] with its own [SearchViewModel] scoped to the route.
-  /// Using ChangeNotifierProvider here (rather than at the app root) means the
-  /// VM — and its debounce timer / stream subscription — is disposed automatically
-  /// when the user pops back to [HomePage].
-  void _openSearchPage(BuildContext context) {
-    // Read ListingService HERE, while `context` still belongs to HomePage and
-    // has access to the ancestor providers. The MaterialPageRoute builder runs
-    // in a brand-new route context that is detached from the app provider tree,
-    // so calling context.read<ListingService>() inside the builder throws
-    // ProviderNotFoundException. Capturing it beforehand sidesteps this entirely.
-    final listingService = context.read<ListingService>();
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChangeNotifierProvider(
-          create: (_) => SearchViewModel(listingService: listingService),
-          child: const SearchPage(),
-        ),
-      ),
-    );
-  }
-
-  void _showProfileMenu(
-    BuildContext context,
-    UserModel? user,
-    AuthViewModel authVM,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: AppColors.primaryLight,
-                child: Text(
-                  _getInitial(user),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                user?.displayName ?? user?.email ?? 'User',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (user?.email != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  user!.email!,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-              const Divider(height: 32),
-              ListTile(
-                leading: const Icon(
-                  Icons.settings_outlined,
-                  color: AppColors.textSecondary,
-                ),
-                title: const Text('Settings'),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Settings coming soon!')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.help_outline,
-                  color: AppColors.textSecondary,
-                ),
-                title: const Text('Help & Support'),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Help & Support coming soon!')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text(
-                  'Sign Out',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await authVM.signOut();
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
     );
   }
 }
