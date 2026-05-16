@@ -21,6 +21,7 @@ class FavoritesViewModel extends ChangeNotifier {
   String? _errorMessage;
   StreamSubscription? _favoritesSubscription;
   StreamSubscription? _listingsSubscription;
+  String get userId => _userId;
 
   FavoritesViewModel({
     required UserRepository userRepository,
