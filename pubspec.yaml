@@ -23,6 +23,7 @@ dependencies:
   
   # Image Picker
   image_picker: ^1.1.2
+  image: ^4.1.3
   
   # Storage
   shared_preferences: ^2.3.2
