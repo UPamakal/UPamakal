@@ -15,11 +15,12 @@ class ListingModel {
   final bool isSold;
   final List<String> imageBase64List;
   final bool isSaved;
-  
-  // Custom offer prices
   final double? minePrice;
   final double? stealPrice;
   final double? grabPrice;
+  final bool mineTaken;
+  final bool stealTaken;
+  final bool grabTaken;
 
   const ListingModel({
     required this.id,
@@ -39,6 +40,9 @@ class ListingModel {
     this.minePrice,
     this.stealPrice,
     this.grabPrice,
+    this.mineTaken = false,
+    this.stealTaken = false,
+    this.grabTaken = false,
   });
 
   static DateTime _convertTimestamp(dynamic timestamp) {
@@ -67,6 +71,9 @@ class ListingModel {
       minePrice: (data['minePrice'] as num?)?.toDouble(),
       stealPrice: (data['stealPrice'] as num?)?.toDouble(),
       grabPrice: (data['grabPrice'] as num?)?.toDouble(),
+      mineTaken: data['mineTaken'] ?? false,
+      stealTaken: data['stealTaken'] ?? false,
+      grabTaken: data['grabTaken'] ?? false,
     );
   }
 
@@ -87,6 +94,9 @@ class ListingModel {
       if (minePrice != null) 'minePrice': minePrice,
       if (stealPrice != null) 'stealPrice': stealPrice,
       if (grabPrice != null) 'grabPrice': grabPrice,
+      'mineTaken': mineTaken,
+      'stealTaken': stealTaken,
+      'grabTaken': grabTaken,
     };
   }
 
@@ -108,6 +118,9 @@ class ListingModel {
     double? minePrice,
     double? stealPrice,
     double? grabPrice,
+    bool? mineTaken,
+    bool? stealTaken,
+    bool? grabTaken,
   }) {
     return ListingModel(
       id: id ?? this.id,
@@ -127,6 +140,9 @@ class ListingModel {
       minePrice: minePrice ?? this.minePrice,
       stealPrice: stealPrice ?? this.stealPrice,
       grabPrice: grabPrice ?? this.grabPrice,
+      mineTaken: mineTaken ?? this.mineTaken,
+      stealTaken: stealTaken ?? this.stealTaken,
+      grabTaken: grabTaken ?? this.grabTaken,
     );
   }
 
