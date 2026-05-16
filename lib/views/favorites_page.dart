@@ -713,7 +713,7 @@ class FavoriteCard extends StatelessWidget {
                       height: 1.3,
                       color: isDarkMode ? Colors.white : Colors.black87,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
