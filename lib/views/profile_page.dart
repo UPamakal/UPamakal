@@ -16,6 +16,7 @@ import 'home_page.dart';
 import 'login_page.dart';
 import 'edit_listing_page.dart';
 import 'favorites_page.dart';
+import '../repositories/user_repository.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? sellerId;
@@ -35,6 +36,10 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _lastUserId;
   UserModel? _fetchedSellerUser;
   bool _isLoadingUser = false;
+  
+  // NEW: Track own profile data refresh
+  UserModel? _refreshedOwnUser;
+  bool _isLoadingOwnUser = false;
 
   int _selectedTabIndex = 0;
 
@@ -47,18 +52,55 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!_isOwnProfile && widget.sellerUser == null) {
       _fetchSellerUser();
     }
+    
+    // NEW: Refresh own user data from Firestore to get latest profile fields
+    if (_isOwnProfile) {
+      _refreshOwnUserData();
+    }
+  }
+
+  // NEW: Fetch latest user data from Firestore for own profile
+  Future<void> _refreshOwnUserData() async {
+    final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    final currentUserId = authVM.user?.uid;
+    
+    if (currentUserId == null) return;
+    
+    setState(() {
+      _isLoadingOwnUser = true;
+    });
+    
+    try {
+      final userRepo = UserRepository();
+      final freshUser = await userRepo.getUserById(currentUserId);
+      
+      if (freshUser != null && mounted) {
+        setState(() {
+          _refreshedOwnUser = freshUser;
+        });
+        
+        // OPTIONAL: Also update AuthViewModel if needed for other screens
+        // await authVM.refreshUserFromFirestore();
+      }
+    } catch (e) {
+      debugPrint('Error refreshing own user data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingOwnUser = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchSellerUser() async {
     setState(() => _isLoadingUser = true);
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_profileUserId)
-          .get();
+      final userRepo = UserRepository();
+      final userDoc = await userRepo.getUserById(_profileUserId);
       
-      if (userDoc.exists) {
-        _fetchedSellerUser = UserModel.fromFirestore(userDoc.data()!);
+      if (userDoc != null) {
+        _fetchedSellerUser = userDoc;
       }
     } catch (e) {
       debugPrint('Error fetching seller: $e');
@@ -77,7 +119,28 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Removed "My Favorites" ListTile – now a separate AppBar button
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Edit Profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openEditProfile();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.refresh_outlined),
+                title: const Text('Refresh Profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _refreshOwnUserData();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Refreshing profile data...'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('Settings'),
@@ -142,8 +205,17 @@ class _ProfilePageState extends State<ProfilePage> {
   void _openShareProfile(UserModel? user) {
     if (user == null) return;
     
-    final displayName = user.displayName ?? user.email ?? 'User';
-    final shareText = 'Check out $displayName\'s profile on UPamakal Campus Marketplace!';
+    final displayName = user.getDisplayIdentifier();
+    final userType = user.userType == UserTypes.student ? 'Student' : 'Community Member';
+    final academicInfo = user.getAcademicInfo();
+    final communityRoleDisplay = user.getCommunityRoleDisplay();
+    final memberSince = user.getFormattedMemberSince();
+    
+    String shareText = 'Check out $displayName\'s profile on UPamakal Campus Marketplace!\n\n';
+    shareText += '👤 $userType\n';
+    if (academicInfo.isNotEmpty) shareText += '🎓 $academicInfo\n';
+    if (communityRoleDisplay.isNotEmpty) shareText += '🏘️ $communityRoleDisplay\n';
+    shareText += '📅 $memberSince';
     
     showDialog(
       context: context,
@@ -264,8 +336,8 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final room = await chatVM.startConversation(
         sellerId: _profileUserId,
-        listingId: '', // No specific listing for profile chat
-        listingTitle: 'Chat with ${widget.sellerUser?.displayName ?? 'Seller'}',
+        listingId: '',
+        listingTitle: 'Chat with ${widget.sellerUser?.getDisplayIdentifier() ?? 'Seller'}',
       );
       
       if (mounted) {
@@ -715,6 +787,18 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  String _getUserMainInfo(UserModel user) {
+    if (user.userType == UserTypes.student) {
+      final academicInfo = user.getAcademicInfo();
+      if (academicInfo.isNotEmpty) return academicInfo;
+      return 'Student';
+    } else {
+      final roleDisplay = user.getCommunityRoleDisplay();
+      if (roleDisplay.isNotEmpty) return roleDisplay;
+      return 'Community Member';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authVM = context.watch<AuthViewModel>();
@@ -726,11 +810,20 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
     
+    // NEW: Determine which user to display
     UserModel? displayUser;
     if (_isOwnProfile) {
-      displayUser = user;
+      // Use refreshed data if available, otherwise fall back to authVM.user
+      displayUser = _refreshedOwnUser ?? user;
     } else {
       displayUser = widget.sellerUser ?? _fetchedSellerUser;
+    }
+
+    // NEW: Show loading indicator while refreshing own data
+    if (_isOwnProfile && _isLoadingOwnUser && _refreshedOwnUser == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
@@ -753,7 +846,6 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         actions: _isOwnProfile
             ? [
-                // Favorites button (new)
                 IconButton(
                   icon: const Icon(Icons.favorite_border, color: Colors.black),
                   onPressed: () {
@@ -764,9 +856,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                   tooltip: 'My Favorites',
                 ),
-                // Settings button (original, now only opens bottom sheet without favorites)
                 IconButton(
-                  icon: const Icon(Icons.settings_outlined, color: Colors.black),
+                  icon: const Icon(Icons.more_vert, color: Colors.black),
                   onPressed: _openSettingsMenu,
                   tooltip: 'Settings',
                 ),
@@ -794,10 +885,14 @@ class _ProfilePageState extends State<ProfilePage> {
             final activeListings = _activeListings(allListings);
             final soldListings = _soldListings(allListings);
             
-            final displayName = displayUser?.displayName ?? displayUser?.email ?? 'User';
+            final displayName = displayUser?.displayName ?? displayUser?.email?.split('@').first ?? 'User';
             final email = displayUser?.email ?? 'No email available';
             final photoUrl = displayUser?.photoURL;
-
+            final userType = displayUser?.userType;
+            
+            // NEW: Use actual communitySince from Firestore
+            final memberSince = displayUser?.getFormattedMemberSince() ?? 'Member since 2024';
+            
             final selectedListings = switch (_selectedTabIndex) {
               0 => activeListings,
               1 => const <ListingModel>[],
@@ -869,33 +964,86 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF5F7FA),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Text(
-                                    'BS COMPUTER SCIENCE',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.black54,
+                                
+                                // User Type Badge
+                                if (userType != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: userType == UserTypes.student
+                                          ? AppColors.primaryLight
+                                          : const Color(0xFFE8F5E9),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          userType == UserTypes.student
+                                              ? Icons.school
+                                              : Icons.people,
+                                          size: 14,
+                                          color: userType == UserTypes.student
+                                              ? AppColors.primary
+                                              : Colors.green.shade700,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          userType == UserTypes.student
+                                              ? 'Student'
+                                              : 'Community Member',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: userType == UserTypes.student
+                                                ? AppColors.primary
+                                                : Colors.green.shade700,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Member since 2024',
-                                  style: TextStyle(
+                                
+                                const SizedBox(height: 6),
+                                
+                                // Academic Info or Community Role (NOW WORKS with refreshed data)
+                                if (displayUser != null) ...[
+                                  if (displayUser.userType == UserTypes.student && 
+                                      displayUser.getAcademicInfo().isNotEmpty)
+                                    Text(
+                                      displayUser.getAcademicInfo()!,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  if (displayUser.userType == UserTypes.nonStudent &&
+                                      displayUser.getCommunityRoleDisplay().isNotEmpty)
+                                    Text(
+                                      displayUser.getCommunityRoleDisplay(),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 4),
+                                ],
+                                
+                                // Member Since (NOW uses actual communitySince)
+                                Text(
+                                  memberSince,
+                                  style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 16),
+                                
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceEvenly,

@@ -8,16 +8,15 @@ class AuthViewModel extends ChangeNotifier {
   UserModel? _user;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _needsProfileCompletion = false;
+  bool _wasProfileCompletionForced = false; // NEW
 
   AuthViewModel({required AuthService authService})
       : _authService = authService {
-    
-    // Listen to Firebase auth state changes
     _authService.authStateChanges.listen((user) {
       _user = user;
       _errorMessage = null;
       notifyListeners();
-
       debugPrint("🔄 Auth state changed: ${user?.email ?? 'NULL'}");
     });
   }
@@ -27,6 +26,8 @@ class AuthViewModel extends ChangeNotifier {
   bool get isAuthenticated => _user != null;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get needsProfileCompletion => _needsProfileCompletion;
+  bool get wasProfileCompletionForced => _wasProfileCompletionForced; // NEW
 
   // ---------------- Error reset ----------------
   void clearError() {
@@ -34,15 +35,34 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearProfileCompletionFlag() {
+    _needsProfileCompletion = false;
+    _wasProfileCompletionForced = false;
+    notifyListeners();
+  }
+
   // ---------------- Email Sign Up ----------------
   Future<bool> signUpWithEmailPassword({
     required String email,
     required String password,
+    String? userType,
+    String? course,
+    String? yearLevel,
+    String? communityRole,
+    int? communitySince,
   }) async {
+    final userData = <String, dynamic>{};
+    if (userType != null) userData['userType'] = userType;
+    if (course != null) userData['course'] = course;
+    if (yearLevel != null) userData['yearLevel'] = yearLevel;
+    if (communityRole != null) userData['communityRole'] = communityRole;
+    if (communitySince != null) userData['communitySince'] = communitySince;
+
     return _runWithLoading(() async {
       await _authService.signUpWithEmailPassword(
         email: email,
         password: password,
+        userData: userData.isNotEmpty ? userData : null,
       );
     });
   }
@@ -60,10 +80,57 @@ class AuthViewModel extends ChangeNotifier {
     });
   }
 
-  // ---------------- Google Sign In ----------------
+  // ---------------- Google Sign In (FIXED) ----------------
   Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final (user, needsCompletion, wasForced) = await _authService.signInWithGoogle();
+      _user = user;
+      _needsProfileCompletion = needsCompletion;
+      _wasProfileCompletionForced = wasForced;
+      
+      debugPrint("📊 Google Sign-In result: needsCompletion=$needsCompletion, wasForced=$wasForced");
+      
+      return true;
+    } catch (e) {
+      _errorMessage = _parseFirebaseError(e);
+      debugPrint("🔥 Google Sign-In error: $e");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ---------------- Profile Completion ----------------
+  Future<bool> completeProfile({
+    required String userType,
+    String? course,
+    String? yearLevel,
+    String? communityRole,
+    int? communitySince,
+  }) async {
+    if (_user == null) {
+      _errorMessage = 'No user logged in';
+      notifyListeners();
+      return false;
+    }
+
     return _runWithLoading(() async {
-      await _authService.signInWithGoogle();
+      final updatedUser = await _authService.completeProfile(
+        userId: _user!.uid,
+        userType: userType,
+        course: course,
+        yearLevel: yearLevel,
+        communityRole: communityRole,
+        communitySince: communitySince,
+      );
+      _user = updatedUser;
+      _needsProfileCompletion = false;
+      _wasProfileCompletionForced = false;
     });
   }
 
@@ -78,8 +145,9 @@ class AuthViewModel extends ChangeNotifier {
   Future<void> signOut() async {
     await _runWithLoading(() async {
       await _authService.signOut();
-
       _user = null;
+      _needsProfileCompletion = false;
+      _wasProfileCompletionForced = false;
       notifyListeners();
     });
   }
@@ -127,6 +195,9 @@ class AuthViewModel extends ChangeNotifier {
     }
     if (message.contains('too-many-requests')) {
       return 'Too many attempts. Try again later.';
+    }
+    if (message.contains('popup-closed-by-user')) {
+      return 'Google Sign-In was cancelled.';
     }
 
     return 'Something went wrong.';

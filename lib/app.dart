@@ -6,6 +6,7 @@ import 'view_models/landing_view_model.dart';
 import 'views/landing_page.dart';
 import 'views/login_page.dart';
 import 'views/home_page.dart';
+import 'views/profile_completion_page.dart';
 
 /// --------------------------------------------------------------------------
 /// ROOT WIDGET — UpamakalApp
@@ -13,25 +14,19 @@ import 'views/home_page.dart';
 /// Wraps the entire application in a [MaterialApp] with the Maroon theme.
 ///
 /// Auth routing logic:
-///   1. If the app is being launched for the first time, show the
-///      [LandingPage] regardless of auth state (invites the user to
-///      explore the brand before logging in).
-///   2. If the app has been launched before AND the user is already
-///      signed in (Firebase persisted session), go straight to
-///      [HomePage].
-///   3. Otherwise, show the [LoginPage].
-///
-/// This logic lives in [_AuthGate] which combines [LandingViewModel]
-/// (first-launch flag) and [AuthViewModel] (Firebase auth stream).
+///   1. First launch → show LandingPage
+///   2. Not first launch + authenticated + profile complete → HomePage
+///   3. Not first launch + authenticated + profile incomplete → ProfileCompletionPage
+///   4. Not first launch + not authenticated → LoginPage
 /// --------------------------------------------------------------------------
 class UpamakalApp extends StatelessWidget {
   const UpamakalApp({super.key});
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      // ---- Maroon theme ---------------------------------------------------
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.primary,
@@ -71,7 +66,6 @@ class UpamakalApp extends StatelessWidget {
           ),
         ),
       ),
-      // ---- Auth routing gate ----------------------------------------------
       home: const _AuthGate(),
     );
   }
@@ -81,32 +75,45 @@ class UpamakalApp extends StatelessWidget {
 /// _AuthGate
 /// --------------------------------------------------------------------------
 /// Reactive gate widget that decides which screen to show based on:
-///   - [LandingViewModel.isFirstLaunch] — persisted in SharedPreferences
-///   - [AuthViewModel.user] — driven by Firebase's auth state stream
-///
-/// Both are consumed via [Provider] / context watchers so the UI
-/// automatically updates when state changes (e.g. user logs in/out).
+///   - LandingViewModel.isFirstLaunch (SharedPreferences)
+///   - AuthViewModel.user (Firebase auth)
+///   - AuthViewModel.user.userType (profile completion status)
 /// --------------------------------------------------------------------------
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
+
   @override
   Widget build(BuildContext context) {
-    // Watch ViewModels — rebuild whenever they notify listeners
     final landingVM = context.watch<LandingViewModel>();
     final authVM = context.watch<AuthViewModel>();
-    // Still determining first-launch status (loading SharedPreferences)
+    
+    // Still determining first-launch status
     if (landingVM.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    
     // First launch → show branding/landing page
     if (landingVM.isFirstLaunch) {
       return const LandingPage();
     }
-    // Not first launch + already authenticated → skip login
-    if (authVM.isAuthenticated) {
-      return const HomePage();
+    
+    // Not authenticated → login page
+    if (!authVM.isAuthenticated) {
+      return const LoginPage();
     }
-    // Not first launch + not authenticated → login
-    return const LoginPage();
+    
+    // User is authenticated. Check if profile is complete.
+    final user = authVM.user;
+    final hasCompleteProfile = user?.userType != null;
+    
+    // Force profile completion if userType is missing
+    if (!hasCompleteProfile) {
+      debugPrint('🔐 AuthGate: User ${user?.uid} has incomplete profile → redirecting to ProfileCompletionPage');
+      return const ProfileCompletionPage();
+    }
+    
+    // Fully authenticated with complete profile → home page
+    debugPrint('🏠 AuthGate: User ${user?.uid} has complete profile (${user?.userType}) → HomePage');
+    return const HomePage();
   }
 }

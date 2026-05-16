@@ -2,14 +2,7 @@
 /// UserModel
 /// --------------------------------------------------------------------------
 /// A lightweight, immutable data class that represents an authenticated
-/// user within the UPamakal domain. It decouples the rest of the app from
-/// Firebase's [User] type so that the UI layer never directly depends on
-/// Firebase objects — a key tenet of MVVM.
-///
-/// Firestore document:  `users/{uid}`
-/// Fields added for future features:
-///   • [createdAt]  — when the account was first created (set server-side)
-///   • [favorites]  — list of item IDs the user has saved
+/// user within the UPamakal domain.
 /// --------------------------------------------------------------------------
 class UserModel {
   /// Firebase Auth UID — stable across sessions.
@@ -31,15 +24,28 @@ class UserModel {
   final String? fcmToken;
 
   /// Timestamp of when the Firestore document was first created.
-  /// Populated by [UserRepository] via [FieldValue.serverTimestamp()].
-  /// Will be `null` when the model is built from Firebase Auth alone
-  /// (e.g. in [authStateChanges]) because Auth carries no Firestore data.
   final DateTime? createdAt;
 
   /// List of item IDs the user has saved as favourites.
-  /// Seeded as an empty list on account creation — ready for the
-  /// favourites feature without any schema migration.
   final List<String> favorites;
+  
+  /// User type: 'student' or 'non_student'
+  final String? userType;
+  
+  /// For students: their course/program
+  final String? course;
+  
+  /// For students: their year level (I, II, III, IV, V)
+  final String? yearLevel;
+  
+  /// For non-students: 'local_resident', 'local_business', or 'alumni'
+  final String? communityRole;
+  
+  /// When they joined the community (year only, e.g., 2024)
+  final int? communitySince;
+  
+  /// NEW: When profile was completed (null if never completed)
+  final DateTime? profileCompletedAt;
 
   const UserModel({
     required this.uid,
@@ -50,14 +56,16 @@ class UserModel {
     this.fcmToken,
     this.createdAt,
     this.favorites = const [],
+    this.userType,
+    this.course,
+    this.yearLevel,
+    this.communityRole,
+    this.communitySince,
+    this.profileCompletedAt,
   });
 
   // ---- Factory constructors -----------------------------------------------
 
-  /// Maps a Firebase [User] (from `firebase_auth`) to a domain [UserModel].
-  /// This is the only place where the Firebase User type is destructured —
-  /// views never see it. Note: [createdAt] and [favorites] are not available
-  /// from Firebase Auth; they are populated by [fromFirestore].
   factory UserModel.fromFirebaseUser(dynamic firebaseUser) {
     return UserModel(
       uid: firebaseUser.uid as String,
@@ -68,15 +76,10 @@ class UserModel {
     );
   }
 
-  /// Builds a [UserModel] from a Firestore document map.
-  /// Used by [UserRepository] when reading back a full user profile,
-  /// including [createdAt] and [favorites].
   factory UserModel.fromFirestore(Map<String, dynamic> data) {
-    // Firestore Timestamps need to be converted to DateTime.
     DateTime? createdAt;
     final raw = data['createdAt'];
     if (raw != null) {
-      // Works whether the value is a Firestore Timestamp or already a DateTime.
       try {
         createdAt = (raw as dynamic).toDate() as DateTime;
       } catch (_) {
@@ -84,7 +87,16 @@ class UserModel {
       }
     }
 
-    // Safely coerce the favorites list regardless of how it arrives.
+    DateTime? profileCompletedAt;
+    final rawCompleted = data['profileCompletedAt'];
+    if (rawCompleted != null) {
+      try {
+        profileCompletedAt = (rawCompleted as dynamic).toDate() as DateTime;
+      } catch (_) {
+        profileCompletedAt = null;
+      }
+    }
+
     List<String> favorites = [];
     final rawFavs = data['favorites'];
     if (rawFavs is List) {
@@ -100,17 +112,17 @@ class UserModel {
       fcmToken: data['fcmToken'] as String?,
       createdAt: createdAt,
       favorites: favorites,
+      userType: data['userType'] as String?,
+      course: data['course'] as String?,
+      yearLevel: data['yearLevel'] as String?,
+      communityRole: data['communityRole'] as String?,
+      communitySince: data['communitySince'] as int?,
+      profileCompletedAt: profileCompletedAt,
     );
   }
 
   // ---- Serialisation ------------------------------------------------------
 
-  /// Converts this [UserModel] to a plain map suitable for Firestore.
-  /// [createdAt] is intentionally excluded — it is set server-side by
-  /// [UserRepository] using [FieldValue.serverTimestamp()].
-  /// [favorites] is also excluded here and seeded separately in
-  /// [UserRepository.createUserDocument] so the list is never accidentally
-  /// overwritten by a profile update.
   Map<String, dynamic> toFirestore() {
     return {
       'uid': uid,
@@ -119,22 +131,60 @@ class UserModel {
       'photoURL': photoURL,
       'emailVerified': emailVerified,
       if (fcmToken != null) 'fcmToken': fcmToken,
+      if (userType != null) 'userType': userType,
+      if (course != null) 'course': course,
+      if (yearLevel != null) 'yearLevel': yearLevel,
+      if (communityRole != null) 'communityRole': communityRole,
+      if (communitySince != null) 'communitySince': communitySince,
+      if (profileCompletedAt != null) 'profileCompletedAt': profileCompletedAt,
     };
   }
 
   // ---- Convenience helpers ------------------------------------------------
 
-  /// Returns `true` when a non-empty display name is available.
   bool get hasDisplayName => displayName != null && displayName!.isNotEmpty;
 
-  /// Returns `true` when [itemId] is in the user's saved favourites.
   bool isFavorite(String itemId) => favorites.contains(itemId);
+  
+  String getDisplayIdentifier() {
+    if (displayName != null && displayName!.isNotEmpty) return displayName!;
+    if (email != null && email!.isNotEmpty) return email!.split('@').first;
+    return 'User';
+  }
+  
+  String getFormattedMemberSince() {
+    if (communitySince == null) return 'Member since 2024';
+    return 'Member since $communitySince';
+  }
+  
+  String getAcademicInfo() {
+    if (userType != 'student') return '';
+    if (course == null && yearLevel == null) return '';
+    if (course != null && yearLevel != null) {
+      return '$course • Year $yearLevel';
+    }
+    if (course != null) return course!;
+    if (yearLevel != null) return '$yearLevel Year';
+    return '';
+  }
+  
+  String getCommunityRoleDisplay() {
+    switch (communityRole) {
+      case 'local_resident':
+        return 'Local Resident';
+      case 'local_business':
+        return 'Local Business';
+      case 'alumni':
+        return 'Alumni';
+      default:
+        return '';
+    }
+  }
+
+  bool get hasCompleteProfile => userType != null && profileCompletedAt != null;
 
   // ---- copyWith -----------------------------------------------------------
 
-  /// Returns a new [UserModel] with the given fields replaced.
-  /// Useful when updating state in the ViewModel without a full Firestore
-  /// round-trip (e.g. after a local favorites toggle).
   UserModel copyWith({
     String? uid,
     String? email,
@@ -144,6 +194,12 @@ class UserModel {
     String? fcmToken,
     DateTime? createdAt,
     List<String>? favorites,
+    String? userType,
+    String? course,
+    String? yearLevel,
+    String? communityRole,
+    int? communitySince,
+    DateTime? profileCompletedAt,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -154,11 +210,123 @@ class UserModel {
       fcmToken: fcmToken ?? this.fcmToken,
       createdAt: createdAt ?? this.createdAt,
       favorites: favorites ?? this.favorites,
+      userType: userType ?? this.userType,
+      course: course ?? this.course,
+      yearLevel: yearLevel ?? this.yearLevel,
+      communityRole: communityRole ?? this.communityRole,
+      communitySince: communitySince ?? this.communitySince,
+      profileCompletedAt: profileCompletedAt ?? this.profileCompletedAt,
     );
   }
 
   @override
   String toString() =>
       'UserModel(uid: $uid, email: $email, displayName: $displayName, '
-      'emailVerified: $emailVerified, favorites: ${favorites.length})';
+      'userType: $userType, communitySince: $communitySince, '
+      'profileCompletedAt: $profileCompletedAt)';
+}
+
+/// --------------------------------------------------------------------------
+/// UserType Constants
+/// --------------------------------------------------------------------------
+class UserTypes {
+  static const String student = 'student';
+  static const String nonStudent = 'non_student';
+  
+  static const List<String> all = [student, nonStudent];
+  
+  static String getDisplayName(String type) {
+    switch (type) {
+      case student:
+        return 'Student';
+      case nonStudent:
+        return 'Non-Student';
+      default:
+        return type;
+    }
+  }
+}
+
+/// --------------------------------------------------------------------------
+/// CommunityRole Constants
+/// --------------------------------------------------------------------------
+class CommunityRoles {
+  static const String localResident = 'local_resident';
+  static const String localBusiness = 'local_business';
+  static const String alumni = 'alumni';
+  
+  static const List<String> all = [localResident, localBusiness, alumni];
+  
+  static String getDisplayName(String role) {
+    switch (role) {
+      case localResident:
+        return 'Local Resident';
+      case localBusiness:
+        return 'Local Business';
+      case alumni:
+        return 'Alumni';
+      default:
+        return role;
+    }
+  }
+}
+
+/// --------------------------------------------------------------------------
+/// Course Constants
+/// --------------------------------------------------------------------------
+class Courses {
+  static const List<String> all = [
+    'BA in Community Development',
+    'BA in History',
+    'BA in Sociology',
+    'BA in Communication and Media Studies',
+    'BA in Literature',
+    'BA in Political Science',
+    'BA in Psychology',
+    'BS in Biology',
+    'BS Accountancy',
+    'BS Applied Mathematics',
+    'BS Business Administration (Marketing)',
+    'BS Chemical Engineering',
+    'BS Chemistry',
+    'BS Computer Science',
+    'BS Economics',
+    'BS Fisheries',
+    'BS Food Technology',
+    'BS Management',
+    'BS Public Health',
+    'BS Statistics',
+  ];
+  
+  static List<String> get suggestions => all;
+}
+
+/// --------------------------------------------------------------------------
+/// YearLevel Constants
+/// --------------------------------------------------------------------------
+class YearLevels {
+  static const List<String> all = [
+    'I',
+    'II',
+    'III',
+    'IV',
+    'V',
+  ];
+  
+  static String getDisplayName(String level) {
+    switch (level) {
+      case 'I':
+        return 'First Year';
+      case 'II':
+        return 'Second Year';
+      case 'III':
+        return 'Third Year';
+      case 'IV':
+        return 'Fourth Year';
+      case 'V':
+        return 'Fifth Year';
+      default:
+        return '$level Year';
+    }
+  }
 }
