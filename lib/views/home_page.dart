@@ -14,6 +14,7 @@ import 'profile_page.dart';
 import 'listing_detail_page.dart';
 import 'search_page.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/adaptive_favorite_button.dart';
 import '../views/favorites_page.dart';
 import 'login_page.dart';
 
@@ -28,7 +29,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Controller for search - managed in StatefulWidget to dispose properly
   late TextEditingController _searchController;
 
   @override
@@ -554,12 +554,16 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // UPDATED: Now uses AdaptiveFavoriteButton
   Widget _buildListingCard(
     BuildContext context,
     ListingModel listing,
     HomeViewModel homeVM,
     UserModel? user,
   ) {
+    final primaryImage = listing.imageBase64 ?? 
+        (listing.imageBase64List.isNotEmpty ? listing.imageBase64List.first : null);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -613,48 +617,35 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  // FIX: Enhanced favorite button with always-visible dark background
+                  // UPDATED: Adaptive favorite button
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: user != null
-                          ? FavoriteButton(
-                              listingId: listing.id,
-                              userId: user.uid,
-                              size: 20,
-                            )
-                          : Container(
-                              width: 38,
-                              height: 38,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.favorite_border,
-                                size: 20,
-                                color: AppColors.primary,
+                    child: user != null
+                        ? AdaptiveFavoriteButton(
+                            listingId: listing.id,
+                            userId: user.uid,
+                            imageBase64: primaryImage,
+                            size: 20,
+                            showBackground: true,
+                          )
+                        : Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                width: 1.0,
                               ),
                             ),
-                    ),
+                            child: const Icon(
+                              Icons.favorite_border,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ],
               ),

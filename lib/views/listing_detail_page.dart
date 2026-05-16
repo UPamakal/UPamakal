@@ -9,6 +9,7 @@ import 'chat_detail_page.dart';
 import 'profile_page.dart';
 import 'login_page.dart';
 import '../services/image_service.dart';
+import '../widgets/adaptive_favorite_button.dart';
 
 class ListingDetailPage extends StatelessWidget {
   final ListingModel listing;
@@ -353,76 +354,179 @@ class ListingDetailPage extends StatelessWidget {
 
   static String _formatPeso(num amount) => '₱${amount.round()}';
 
-  // FIXED: Now supports multiple images with PageView
-  Widget _buildListingImage(ListingModel listing) {
-  // Build unique list of images (avoid duplicates)
-  final Set<String> uniqueImages = {};
-  
-  // Add primary image if exists
-  if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
-    uniqueImages.add(listing.imageBase64!);
-  }
-  
-  // Add images from list
-  for (final img in listing.imageBase64List) {
-    if (img.isNotEmpty) {
-      uniqueImages.add(img);
+  Widget _buildListingImage(ListingModel listing, BuildContext context) {
+    // Build unique list of images (avoid duplicates)
+    final Set<String> uniqueImages = {};
+    
+    // Add primary image if exists
+    if (listing.imageBase64 != null && listing.imageBase64!.isNotEmpty) {
+      uniqueImages.add(listing.imageBase64!);
     }
-  }
-  
-  final images = uniqueImages.toList();
+    
+    // Add images from list
+    for (final img in listing.imageBase64List) {
+      if (img.isNotEmpty) {
+        uniqueImages.add(img);
+      }
+    }
+    
+    final images = uniqueImages.toList();
+    final primaryImage = images.isNotEmpty ? images.first : null;
 
-  if (images.isEmpty) {
-    return Container(
-      color: AppColors.primaryLight,
-      child: Icon(
-        listing.category == 'Books' ? Icons.menu_book : Icons.devices,
-        size: 100,
-        color: AppColors.primary.withValues(alpha: 0.3),
-      ),
-    );
-  }
-
-  if (images.length == 1) {
-    return ImageService.base64ToImage(images.first, fit: BoxFit.cover);
-  }
-
-  // Show image indicator for multiple images
-  return Stack(
-    children: [
-      PageView.builder(
-        itemCount: images.length,
-        itemBuilder: (_, i) =>
-            ImageService.base64ToImage(images[i], fit: BoxFit.cover),
-      ),
-      Positioned(
-        bottom: 16,
-        left: 0,
-        right: 0,
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
+    if (images.isEmpty) {
+      return Container(
+        color: AppColors.primaryLight,
+        child: Stack(
+          children: [
+            Center(
+              child: Icon(
+                listing.category == 'Books' ? Icons.menu_book : Icons.devices,
+                size: 100,
+                color: AppColors.primary.withValues(alpha: 0.3),
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.photo_library, size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-                Text(
-                  '${images.length} photos',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ],
+            // Back button overlay (left side)
+            Positioned(
+              top: 48,
+              left: 18,
+              child: AdaptiveIconButton(
+                icon: Icons.arrow_back,
+                onPressed: () => Navigator.of(context).pop(),
+                imageBase64: primaryImage,
+                size: 40,
+                iconSize: 20,
+              ),
+            ),
+            // Action buttons overlay (right side)
+            Positioned(
+              top: 48,
+              right: 18,
+              child: Row(
+                children: [
+                  AdaptiveIconButton(
+                    icon: Icons.share,
+                    onPressed: () {},
+                    size: 40,
+                    iconSize: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  if (context.read<AuthViewModel>().user != null)
+                    AdaptiveFavoriteButton(
+                      listingId: listing.id,
+                      userId: context.read<AuthViewModel>().user!.uid,
+                      imageBase64: null,
+                      size: 20,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        PageView.builder(
+          itemCount: images.length,
+          itemBuilder: (_, i) => ImageService.base64ToImage(images[i], fit: BoxFit.cover),
+        ),
+        // Gradient overlay - now properly layered but DOES NOT cover buttons
+        // because buttons are rendered AFTER this gradient in the Stack
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 120,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.35),
+                  Colors.transparent,
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    ],
-  );
-}
+        
+        // Image counter indicator
+        if (images.length > 1)
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.photo_library, size: 14, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${images.length} photos',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        
+        // Back button overlay (left side) - rendered AFTER gradient
+        Positioned(
+          top: 48,
+          left: 16,
+          child: AdaptiveIconButton(
+            icon: Icons.arrow_back,
+            onPressed: () => Navigator.of(context).pop(),
+            imageBase64: primaryImage,
+            size: 40,
+            iconSize: 20,
+          ),
+        ),
+        
+        // Action buttons overlay (right side) - rendered AFTER gradient
+        Positioned(
+          top: 48,
+          right: 16,
+          child: Row(
+            children: [
+              AdaptiveIconButton(
+                icon: Icons.share,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Share functionality coming soon!'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+                imageBase64: primaryImage,
+                size: 40,
+                iconSize: 20,
+              ),
+              const SizedBox(width: 12),
+              if (context.read<AuthViewModel>().user != null)
+                AdaptiveFavoriteButton(
+                  listingId: listing.id,
+                  userId: context.read<AuthViewModel>().user!.uid,
+                  imageBase64: primaryImage,
+                  size: 20,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   String _getSafeFirstChar(String str) {
     if (str.isEmpty) return '?';
@@ -434,6 +538,7 @@ class ListingDetailPage extends StatelessWidget {
     final authVM = context.watch<AuthViewModel>();
     final isSeller = authVM.user?.uid == listing.sellerId;
     final isLoggedIn = authVM.user != null;
+    final primaryImage = listing.imageBase64 ?? listing.imageBase64List.firstOrNull;
     final sellerUser = UserModel(
       uid: listing.sellerId,
       displayName: listing.sellerName,
@@ -449,31 +554,11 @@ class ListingDetailPage extends StatelessWidget {
             pinned: true,
             backgroundColor: AppColors.primary,
             automaticallyImplyLeading: false,
-            leading: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Material(
-                color: Colors.white,
-                shape: const CircleBorder(),
-                elevation: 2,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.black),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-            ),
+            // REMOVED: leading property - back button now in image overlay
             flexibleSpace: FlexibleSpaceBar(
-              background: _buildListingImage(listing),
+              background: _buildListingImage(listing, context),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share, color: Colors.white),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.favorite_border, color: Colors.white),
-                onPressed: () {},
-              ),
-            ],
+            actions: const [], // Actions moved to image overlay for adaptability
           ),
           SliverToBoxAdapter(
             child: Padding(
