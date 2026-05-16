@@ -26,6 +26,9 @@ class ListingService {
     required String condition,
     required UserModel seller,
     List<XFile> images = const [],
+    double? minePrice,
+    double? stealPrice,
+    double? grabPrice,
   }) async {
     try {
       final docRef = FirebaseFirestore.instance.collection('listings').doc();
@@ -49,15 +52,16 @@ class ListingService {
         category: category,
         condition: condition,
         sellerId: seller.uid,
-        sellerName: seller.displayName ?? 
-            (seller.email?.split('@').first ?? 'User'),
+        sellerName: seller.displayName ?? (seller.email?.split('@').first ?? 'User'),
         createdAt: DateTime.now(),
         isSold: false,
         imageBase64List: base64Images,
+        minePrice: minePrice,
+        stealPrice: stealPrice,
+        grabPrice: grabPrice,
       );
 
       await docRef.set(listing.toFirestore());
-
       return listing;
     } catch (e) {
       throw Exception('Failed to create listing: $e');
@@ -73,6 +77,9 @@ class ListingService {
     required String condition,
     required UserModel seller,
     List<XFile> images = const [],
+    double? minePrice,
+    double? stealPrice,
+    double? grabPrice,
   }) async {
     try {
       final docRef = FirebaseFirestore.instance.collection('listings').doc();
@@ -90,13 +97,15 @@ class ListingService {
         'category': category,
         'condition': condition,
         'sellerId': seller.uid,
-        'sellerName': seller.displayName ?? 
-            (seller.email?.split('@').first ?? 'User'),
+        'sellerName': seller.displayName ?? (seller.email?.split('@').first ?? 'User'),
         'createdAt': DateTime.now(),
         'isSold': false,
         'isDraft': true,
         'imageBase64List': base64Images,
         'imageBase64': base64Images.isNotEmpty ? base64Images.first : null,
+        if (minePrice != null) 'minePrice': minePrice,
+        if (stealPrice != null) 'stealPrice': stealPrice,
+        if (grabPrice != null) 'grabPrice': grabPrice,
       };
 
       await docRef.set(draftData);
@@ -219,6 +228,9 @@ class ListingService {
     String? location,
     String? category,
     String? condition,
+    double? minePrice,
+    double? stealPrice,
+    double? grabPrice,
   }) async {
     final Map<String, dynamic> updates = {};
     if (title != null) updates['title'] = title;
@@ -227,6 +239,9 @@ class ListingService {
     if (location != null) updates['location'] = location;
     if (category != null) updates['category'] = category;
     if (condition != null) updates['condition'] = condition;
+    if (minePrice != null) updates['minePrice'] = minePrice;
+    if (stealPrice != null) updates['stealPrice'] = stealPrice;
+    if (grabPrice != null) updates['grabPrice'] = grabPrice;
     
     if (updates.isNotEmpty) {
       await FirebaseFirestore.instance.collection('listings').doc(listingId).update(updates);

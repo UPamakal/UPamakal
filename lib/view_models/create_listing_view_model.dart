@@ -10,6 +10,11 @@ class CreateListingViewModel extends ChangeNotifier {
   final titleController = TextEditingController();
   final priceController = TextEditingController();
   final descriptionController = TextEditingController();
+  
+  // Optional offer price controllers
+  final minePriceController = TextEditingController();
+  final stealPriceController = TextEditingController();
+  final grabPriceController = TextEditingController();
 
   String? _selectedCategory;
   String _selectedCondition = 'New';
@@ -118,15 +123,17 @@ class CreateListingViewModel extends ChangeNotifier {
   }
 
   Future<ListingModel?> submitListing(UserModel seller) async {
-    if (!validateForm()) {
-      return null;
-    }
+    if (!validateForm()) return null;
 
     _isSubmitting = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      final mine = double.tryParse(minePriceController.text);
+      final steal = double.tryParse(stealPriceController.text);
+      final grab = double.tryParse(grabPriceController.text);
+
       final listing = await _listingService.createListing(
         title: titleController.text,
         description: descriptionController.text,
@@ -136,11 +143,13 @@ class CreateListingViewModel extends ChangeNotifier {
         condition: _selectedCondition,
         seller: seller,
         images: _selectedImages,
+        minePrice: mine,
+        stealPrice: steal,
+        grabPrice: grab,
       );
 
       _isSubmitting = false;
       notifyListeners();
-      
       return listing;
     } catch (e) {
       _errorMessage = 'Failed to create listing: $e';
@@ -163,6 +172,9 @@ class CreateListingViewModel extends ChangeNotifier {
 
     try {
       final price = double.tryParse(priceController.text) ?? 0;
+      final mine = double.tryParse(minePriceController.text);
+      final steal = double.tryParse(stealPriceController.text);
+      final grab = double.tryParse(grabPriceController.text);
       
       await _listingService.saveDraft(
         title: titleController.text.isEmpty ? 'Untitled Draft' : titleController.text,
@@ -173,11 +185,13 @@ class CreateListingViewModel extends ChangeNotifier {
         condition: _selectedCondition,
         seller: seller,
         images: _selectedImages,
+        minePrice: mine,
+        stealPrice: steal,
+        grabPrice: grab,
       );
 
       _isSavingDraft = false;
       notifyListeners();
-      
       return true;
     } catch (e) {
       _errorMessage = 'Failed to save draft: $e';
@@ -191,6 +205,9 @@ class CreateListingViewModel extends ChangeNotifier {
     titleController.clear();
     priceController.clear();
     descriptionController.clear();
+    minePriceController.clear();
+    stealPriceController.clear();
+    grabPriceController.clear();
     _selectedCategory = null;
     _selectedCondition = 'New';
     _selectedImages = [];
@@ -203,6 +220,9 @@ class CreateListingViewModel extends ChangeNotifier {
     titleController.dispose();
     priceController.dispose();
     descriptionController.dispose();
+    minePriceController.dispose();
+    stealPriceController.dispose();
+    grabPriceController.dispose();
     super.dispose();
   }
 }
