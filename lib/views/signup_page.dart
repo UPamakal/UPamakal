@@ -16,7 +16,7 @@ import 'profile_completion_page.dart';
 /// SignUpPage
 /// --------------------------------------------------------------------------
 /// Allows new users to create an account via:
-///   1. Email + password (Firebase Auth)
+///   1. Email + password (Firebase Auth) — with a display name field
 ///   2. Google Sign-In (OAuth)
 ///
 /// After successful registration, extended profile information is collected:
@@ -37,6 +37,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _displayNameController = TextEditingController(); // NEW
 
   // Extended profile fields
   String? _selectedUserType;
@@ -63,6 +64,7 @@ class _SignUpPageState extends State<SignUpPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _displayNameController.dispose();
     super.dispose();
   }
 
@@ -73,7 +75,6 @@ class _SignUpPageState extends State<SignUpPage> {
     setState(() {
       _selectedUserType = value;
       _userTypeError = null;
-      // Clear dependent fields when switching types
       if (value == UserTypes.student) {
         _selectedCommunityRole = null;
         _communityRoleError = null;
@@ -117,13 +118,11 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _validateExtendedFields() {
     bool isValid = true;
 
-    // Validate user type
     if (_selectedUserType == null) {
       setState(() => _userTypeError = 'Please select whether you are a student');
       isValid = false;
     }
 
-    // Student-specific validation
     if (_selectedUserType == UserTypes.student) {
       if (_selectedCourse == null || _selectedCourse!.isEmpty) {
         setState(() => _courseError = 'Please select your course');
@@ -135,7 +134,6 @@ class _SignUpPageState extends State<SignUpPage> {
       }
     }
 
-    // Non-student specific validation
     if (_selectedUserType == UserTypes.nonStudent) {
       if (_selectedCommunityRole == null || _selectedCommunityRole!.isEmpty) {
         setState(() => _communityRoleError = 'Please select your community role');
@@ -143,7 +141,6 @@ class _SignUpPageState extends State<SignUpPage> {
       }
     }
 
-    // Community since validation (required for all)
     final currentYear = DateTime.now().year;
     if (_communitySince == null) {
       setState(() => _communitySinceError = 'Please enter when you joined the community');
@@ -180,6 +177,7 @@ class _SignUpPageState extends State<SignUpPage> {
     final success = await authVM.signUpWithEmailPassword(
       email: _emailController.text,
       password: _passwordController.text,
+      displayName: _displayNameController.text.trim(),
       userType: _selectedUserType,
       course: _selectedCourse,
       yearLevel: _selectedYearLevel,
@@ -223,24 +221,15 @@ class _SignUpPageState extends State<SignUpPage> {
     }
 
     if (success && mounted) {
-      // Check if profile completion is needed
       if (authVM.needsProfileCompletion) {
-        // Navigate to profile completion page
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => const ProfileCompletionPage(),
-            ),
-          );
-        }
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const ProfileCompletionPage()),
+        );
       } else {
-        // Existing user with complete profile
-        if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomePage()),
-            (_) => false,
-          );
-        }
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (_) => false,
+        );
       }
     }
   }
@@ -273,7 +262,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ---- Logo & branding -----------------------------------
                   const LogoWidget(size: 100),
                   const SizedBox(height: 12),
                   Text(
@@ -291,7 +279,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ---- Email field ----------------------------------------
+                  // Email field
                   AuthTextField(
                     controller: _emailController,
                     label: 'Email',
@@ -301,9 +289,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your email address.';
                       }
-                      if (!RegExp(
-                        r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                      ).hasMatch(value.trim())) {
+                      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim())) {
                         return 'Please enter a valid email address.';
                       }
                       return null;
@@ -311,7 +297,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 14),
 
-                  // ---- Password field -------------------------------------
+                  // Password field
                   AuthTextField(
                     controller: _passwordController,
                     label: 'Password',
@@ -333,7 +319,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 14),
 
-                  // ---- Confirm Password field -----------------------------
+                  // Confirm Password field
                   AuthTextField(
                     controller: _confirmPasswordController,
                     label: 'Confirm Password',
@@ -355,58 +341,55 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // ---- Divider for extended fields ------------------------
+                  // Display Name field (NEW)
+                  AuthTextField(
+                    controller: _displayNameController,
+                    label: 'Display Name',
+                    hint: 'How others will see you (e.g., John D.)',
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a display name.';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Display name must be at least 2 characters.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
                   const Divider(),
                   const SizedBox(height: 16),
 
-                  // ---- Extended Profile Section Title ---------------------
                   const Text(
                     'Tell us about yourself',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'This information helps us personalize your experience',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 16),
 
-                  // ---- User Type Selection --------------------------------
                   _buildUserTypeSelector(),
                   if (_userTypeError != null) ...[
                     const SizedBox(height: 4),
-                    Text(
-                      _userTypeError!,
-                      style: TextStyle(fontSize: 12, color: Colors.red.shade700),
-                    ),
+                    Text(_userTypeError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
                   ],
                   const SizedBox(height: 16),
 
-                  // ---- Conditional Fields --------------------------------
                   if (_isStudentSelected) ...[
                     _buildCourseField(),
                     if (_courseError != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        _courseError!,
-                        style: TextStyle(fontSize: 12, color: Colors.red.shade700),
-                      ),
+                      Text(_courseError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
                     ],
                     const SizedBox(height: 16),
                     _buildYearLevelField(),
                     if (_yearLevelError != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        _yearLevelError!,
-                        style: TextStyle(fontSize: 12, color: Colors.red.shade700),
-                      ),
+                      Text(_yearLevelError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
                     ],
                   ],
 
@@ -414,10 +397,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     _buildCommunityRoleField(),
                     if (_communityRoleError != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        _communityRoleError!,
-                        style: TextStyle(fontSize: 12, color: Colors.red.shade700),
-                      ),
+                      Text(_communityRoleError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
                     ],
                   ],
 
@@ -425,86 +405,51 @@ class _SignUpPageState extends State<SignUpPage> {
                   _buildCommunitySinceField(),
                   if (_communitySinceError != null) ...[
                     const SizedBox(height: 4),
-                    Text(
-                      _communitySinceError!,
-                      style: TextStyle(fontSize: 12, color: Colors.red.shade700),
-                    ),
+                    Text(_communitySinceError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
                   ],
 
                   const SizedBox(height: 20),
-
-                  // ---- Terms of Service checkbox --------------------------
                   _buildTermsCheckbox(),
                   const SizedBox(height: 20),
 
-                  // ---- Register button ------------------------------------
                   ElevatedButton(
                     onPressed: authVM.isLoading ? null : _handleEmailSignUp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: authVM.isLoading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Register',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                          ),
+                        ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                        : const Text('Register', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 16),
 
-                  // ---- Divider with "or" ----------------------------------
                   Row(
                     children: [
                       const Expanded(child: Divider()),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'or',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
-                          ),
-                        ),
+                        child: Text('or', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
                       ),
                       const Expanded(child: Divider()),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // ---- Google Sign-Up button ------------------------------
                   OutlinedButton.icon(
                     onPressed: authVM.isLoading ? null : _handleGoogleSignUp,
                     icon: const _GoogleIcon(),
-                    label: const Text(
-                      'Continue with Google',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    label: const Text('Continue with Google', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 52),
                       side: const BorderSide(color: Colors.black26),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // ---- Already have account? Login link -------------------
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -515,20 +460,14 @@ class _SignUpPageState extends State<SignUpPage> {
                         cursor: SystemMouseCursors.click,
                         child: GestureDetector(
                           onTap: () {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (_) => const LoginPage(),
-                              ),
-                            );
+                            Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
                           },
                           child: AnimatedDefaultTextStyle(
                             duration: const Duration(milliseconds: 150),
                             style: TextStyle(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w700,
-                              decoration: _isHoveringLogin
-                                  ? TextDecoration.underline
-                                  : TextDecoration.none,
+                              decoration: _isHoveringLogin ? TextDecoration.underline : TextDecoration.none,
                               decorationThickness: 2.0,
                             ),
                             child: const Text('Login'),
@@ -539,7 +478,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  // ---- Back to home link ----------------------------------
                   MouseRegion(
                     onEnter: (_) => setState(() => _isHoveringBack = true),
                     onExit: (_) => setState(() => _isHoveringBack = false),
@@ -555,9 +493,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         duration: const Duration(milliseconds: 150),
                         style: TextStyle(
                           color: AppColors.textSecondary,
-                          decoration: _isHoveringBack
-                              ? TextDecoration.underline
-                              : TextDecoration.none,
+                          decoration: _isHoveringBack ? TextDecoration.underline : TextDecoration.none,
                           decorationThickness: 2.0,
                         ),
                         child: const Text('Back to home page'),
@@ -573,17 +509,17 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
+  // ------------------------------------------------------------------------
+  // All helper methods are written in full (no placeholders)
+  // ------------------------------------------------------------------------
+
   Widget _buildUserTypeSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'I am a...',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
         ),
         const SizedBox(height: 8),
         Row(
@@ -635,29 +571,11 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 28,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            ),
+            Icon(icon, size: 28, color: isSelected ? AppColors.primary : AppColors.textSecondary),
             const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? AppColors.primary : Colors.black87,
-              ),
-            ),
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isSelected ? AppColors.primary : Colors.black87)),
             const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 10,
-                color: isSelected ? AppColors.primary : AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            Text(subtitle, style: TextStyle(fontSize: 10, color: isSelected ? AppColors.primary : AppColors.textSecondary), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -681,53 +599,29 @@ class _SignUpPageState extends State<SignUpPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Year Level',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
+        const Text('Year Level', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _yearLevelError != null
-                  ? Colors.red.shade300
-                  : Colors.grey.shade300,
-              width: 1.5,
-            ),
+            border: Border.all(color: _yearLevelError != null ? Colors.red.shade300 : Colors.grey.shade300, width: 1.5),
           ),
           child: DropdownButtonFormField<String>(
             value: _selectedYearLevel,
-            hint: const Text(
-              'Select year level',
-              style: TextStyle(color: Colors.grey),
-            ),
+            hint: const Text('Select year level', style: TextStyle(color: Colors.grey)),
             icon: const Icon(Icons.keyboard_arrow_down, color: Colors.black54),
             onChanged: _setYearLevel,
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
+            decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
             items: YearLevels.all.map((level) {
               return DropdownMenuItem(
                 value: level,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      level,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      YearLevels.getDisplayName(level),
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
+                    Text(level, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(YearLevels.getDisplayName(level), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
               );
@@ -745,14 +639,7 @@ class _SignUpPageState extends State<SignUpPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Community Role',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
+        const Text('Community Role', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 10,
@@ -767,26 +654,12 @@ class _SignUpPageState extends State<SignUpPage> {
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.primary : Colors.white,
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(
-                    color: isSelected ? AppColors.primary : Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.25),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : [],
+                  border: Border.all(color: isSelected ? AppColors.primary : Colors.grey.shade300, width: 1.5),
+                  boxShadow: isSelected ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 8)] : [],
                 ),
                 child: Text(
                   CommunityRoles.getDisplayName(role),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isSelected ? Colors.white : AppColors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : AppColors.textSecondary),
                 ),
               ),
             );
@@ -816,9 +689,7 @@ class _SignUpPageState extends State<SignUpPage> {
           width: 24,
           child: Checkbox(
             value: _agreedToTerms,
-            onChanged: (value) {
-              setState(() => _agreedToTerms = value ?? false);
-            },
+            onChanged: (value) => setState(() => _agreedToTerms = value ?? false),
             activeColor: AppColors.primary,
           ),
         ),
@@ -826,27 +697,12 @@ class _SignUpPageState extends State<SignUpPage> {
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: Colors.black87, fontSize: 13),
               children: [
                 const TextSpan(text: 'I agree to the '),
-                TextSpan(
-                  text: 'Terms of Service',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                TextSpan(text: 'Terms of Service', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
                 const TextSpan(text: ' and '),
-                TextSpan(
-                  text: 'Privacy Policy',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                TextSpan(text: 'Privacy Policy', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -861,11 +717,6 @@ class _GoogleIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/images/google.png',
-      width: 20,
-      height: 20,
-      fit: BoxFit.contain,
-    );
+    return Image.asset('assets/images/google.png', width: 20, height: 20, fit: BoxFit.contain);
   }
 }

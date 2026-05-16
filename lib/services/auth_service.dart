@@ -10,9 +10,7 @@ import '../repositories/user_repository.dart';
 /// Data-access layer for authentication. This is the only class in the
 /// application that talks directly to Firebase Auth or [GoogleSignIn].
 ///
-/// FIXED: Google Sign-In now uses a completion flag to prevent infinite loops
-/// when profile completion fails. Users who fail to complete profile will
-/// be forced exactly once, then allowed to skip with a warning.
+/// FIXED: Email/password sign-up now accepts a display name from userData.
 /// --------------------------------------------------------------------------
 class AuthService {
   final FirebaseAuth _firebaseAuth;
@@ -62,11 +60,13 @@ class AuthService {
 
     await credential.user?.sendEmailVerification();
 
-    final user = UserModel.fromFirebaseUser(credential.user!);
+    // Base user from Firebase
+    UserModel user = UserModel.fromFirebaseUser(credential.user!);
 
-    UserModel extendedUser = user;
+    // Merge any extra fields (including displayName)
     if (userData != null) {
-      extendedUser = user.copyWith(
+      user = user.copyWith(
+        displayName: userData['displayName'] as String? ?? user.displayName,
         userType: userData['userType'] as String?,
         course: userData['course'] as String?,
         yearLevel: userData['yearLevel'] as String?,
@@ -75,8 +75,13 @@ class AuthService {
       );
     }
 
-    await _userRepository.createUserDocument(extendedUser);
-    return extendedUser;
+    // Fallback: if displayName is still null, derive from email
+    if (user.displayName == null || user.displayName!.isEmpty) {
+      user = user.copyWith(displayName: email.trim().split('@').first);
+    }
+
+    await _userRepository.createUserDocument(user);
+    return user;
   }
 
   Future<UserModel> signInWithEmailPassword({
@@ -94,11 +99,8 @@ class AuthService {
     await _firebaseAuth.sendPasswordResetEmail(email: email.trim());
   }
 
-  // ---- Google Sign-In (FIXED) ---------------------------------------------
+  // ---- Google Sign-In -----------------------------------------------------
 
-  /// Returns a tuple: (UserModel, needsCompletion, wasForced)
-  /// - needsCompletion: true if profile must be completed
-  /// - wasForced: true if this is the first time they're being forced
   Future<(UserModel, bool, bool)> signInWithGoogle() async {
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
@@ -121,40 +123,26 @@ class AuthService {
     final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
 
     if (isNewUser) {
-      // NEW USER: Create minimal document with completion_attempts = 0
       await _userRepository.createUserDocument(user);
       await _userRepository.setProfileCompletionAttempts(user.uid, 0);
-      return (user, true, true); // First time being forced
+      return (user, true, true);
     } else {
-      // RETURNING USER: Check completion status
       final existingUser = await _userRepository.getUserById(user.uid);
-      
-      // If user has userType, profile is complete
       if (existingUser?.userType != null) {
         return (user, false, false);
       }
-      
-      // User has incomplete profile
       final attempts = await _userRepository.getProfileCompletionAttempts(user.uid);
-      
-      // Update display name/photo in case they changed
       await _userRepository.updateUserDocument(user);
-      
-      // If attempts >= 3, stop forcing (allow skip with warning)
       if (attempts >= 3) {
-        return (user, false, false); // Don't force anymore
+        return (user, false, false);
       }
-      
-      // Increment attempt counter
       await _userRepository.incrementProfileCompletionAttempts(user.uid);
-      
-      return (user, true, attempts == 0); // Force if first incomplete attempt
+      return (user, true, attempts == 0);
     }
   }
 
-  // ---- Profile Completion (FIXED) -----------------------------------------
+  // ---- Profile Completion ------------------------------------------------
 
-  /// Updates user profile and marks completion attempts as resolved
   Future<UserModel> completeProfile({
     required String userId,
     required String userType,
@@ -175,28 +163,17 @@ class AuthService {
       yearLevel: yearLevel,
       communityRole: communityRole,
       communitySince: communitySince,
-      profileCompletedAt: DateTime.now(), // NEW: Track completion timestamp
+      profileCompletedAt: DateTime.now(),
     );
 
     await _userRepository.updateUserDocument(updatedUser);
-    
-    // Reset attempt counter on successful completion
     await _userRepository.resetProfileCompletionAttempts(userId);
-    
     return updatedUser;
   }
 
-  /// Checks if a user has completed their profile.
-  /// Returns false if userType is null OR if completion timestamp is >7 days old
-  /// (forces re-verification for very old incomplete profiles)
   Future<bool> hasCompleteProfile(String userId) async {
     final user = await _userRepository.getUserById(userId);
-    
-    // Complete if userType exists
     if (user?.userType != null) return true;
-    
-    // If no userType but has completion attempts > 0 and profileCompletedAt is null
-    // This is an incomplete profile
     return false;
   }
 

@@ -9,7 +9,7 @@ class AuthViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _needsProfileCompletion = false;
-  bool _wasProfileCompletionForced = false; // NEW
+  bool _wasProfileCompletionForced = false;
 
   AuthViewModel({required AuthService authService})
       : _authService = authService {
@@ -27,7 +27,7 @@ class AuthViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get needsProfileCompletion => _needsProfileCompletion;
-  bool get wasProfileCompletionForced => _wasProfileCompletionForced; // NEW
+  bool get wasProfileCompletionForced => _wasProfileCompletionForced;
 
   // ---------------- Error reset ----------------
   void clearError() {
@@ -41,17 +41,20 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------- Email Sign Up ----------------
+  // ---------------- Email Sign Up (UPDATED) ----------------
   Future<bool> signUpWithEmailPassword({
     required String email,
     required String password,
+    required String displayName,           // NEW parameter
     String? userType,
     String? course,
     String? yearLevel,
     String? communityRole,
     int? communitySince,
   }) async {
-    final userData = <String, dynamic>{};
+    final userData = <String, dynamic>{
+      'displayName': displayName,
+    };
     if (userType != null) userData['userType'] = userType;
     if (course != null) userData['course'] = course;
     if (yearLevel != null) userData['yearLevel'] = yearLevel;
@@ -62,7 +65,7 @@ class AuthViewModel extends ChangeNotifier {
       await _authService.signUpWithEmailPassword(
         email: email,
         password: password,
-        userData: userData.isNotEmpty ? userData : null,
+        userData: userData,
       );
     });
   }
@@ -80,7 +83,7 @@ class AuthViewModel extends ChangeNotifier {
     });
   }
 
-  // ---------------- Google Sign In (FIXED) ----------------
+  // ---------------- Google Sign In ----------------
   Future<bool> signInWithGoogle() async {
     _isLoading = true;
     _errorMessage = null;
@@ -91,9 +94,6 @@ class AuthViewModel extends ChangeNotifier {
       _user = user;
       _needsProfileCompletion = needsCompletion;
       _wasProfileCompletionForced = wasForced;
-      
-      debugPrint("📊 Google Sign-In result: needsCompletion=$needsCompletion, wasForced=$wasForced");
-      
       return true;
     } catch (e) {
       _errorMessage = _parseFirebaseError(e);
