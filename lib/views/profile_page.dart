@@ -15,6 +15,7 @@ import 'chat_detail_page.dart';
 import 'home_page.dart';
 import 'login_page.dart';
 import 'edit_listing_page.dart';
+import 'favorites_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? sellerId;
@@ -76,6 +77,7 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Removed "My Favorites" ListTile – now a separate AppBar button
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('Settings'),
@@ -514,7 +516,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // FIXED: Tab chip now shows different colors for selected vs unselected
   Widget _buildTabChip(String label, bool selected, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
@@ -719,7 +720,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final authVM = context.watch<AuthViewModel>();
     final user = authVM.user;
     
-    // FIXED: Add loading state for own profile when user is null
     if (_isOwnProfile && user == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -753,9 +753,22 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         actions: _isOwnProfile
             ? [
+                // Favorites button (new)
+                IconButton(
+                  icon: const Icon(Icons.favorite_border, color: Colors.black),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FavoritesPage()),
+                    );
+                  },
+                  tooltip: 'My Favorites',
+                ),
+                // Settings button (original, now only opens bottom sheet without favorites)
                 IconButton(
                   icon: const Icon(Icons.settings_outlined, color: Colors.black),
                   onPressed: _openSettingsMenu,
+                  tooltip: 'Settings',
                 ),
               ]
             : [],
