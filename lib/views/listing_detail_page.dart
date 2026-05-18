@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../utils/constants.dart';
 import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
+import '../services/listing_service.dart';
 import 'chat_detail_page.dart';
 import 'profile_page.dart';
 import 'edit_listing_page.dart';
@@ -26,11 +27,14 @@ class ListingDetailPage extends StatefulWidget {
 
 class _ListingDetailPageState extends State<ListingDetailPage> {
   final UserActionService _actionService = UserActionService();
+  final ListingService _listingService = ListingService();
+  ListingModel? _listing;
   late Stream<Map<String, bool>> _lockStatusStream;
 
   @override
   void initState() {
     super.initState();
+    _listing = widget.listing;
     _lockStatusStream = _actionService.watchActionStatus(widget.listing.id);
   }
 
@@ -67,10 +71,14 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     );
     if (confirmed != true) return;
 
-    final success = await _actionService.takeAction(
-      listingId: widget.listing.id,
-      action: action,
-    );
+    bool success = false;
+    if (action == 'mine') {
+      success = await _listingService.mineListing(listingId: widget.listing.id, userId: userId);
+    } else if (action == 'steal') {
+      success = await _listingService.stealListing(listingId: widget.listing.id, userId: userId, amount: amount.toDouble());
+    } else if (action == 'grab') {
+      success = await _listingService.grabListing(listingId: widget.listing.id, userId: userId);
+    }
     if (!mounted) return;
 
     if (success) {
@@ -81,6 +89,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+        await _refreshListingData();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -90,6 +99,14 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
         ),
       );
     }
+  }
+
+  Future<void> _refreshListingData() async {
+    final updated = await _listingService.getListingById(widget.listing.id);
+    if (!mounted) return;
+    setState(() {
+      _listing = updated ?? _listing;
+    });
   }
 
   Future<void> _openChat(BuildContext context) async {
@@ -227,9 +244,10 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     final primaryImage = widget.listing.imageBase64 ?? (widget.listing.imageBase64List.isNotEmpty ? widget.listing.imageBase64List.first : null);
     final sellerUser = UserModel(uid: widget.listing.sellerId, displayName: widget.listing.sellerName, email: null);
 
-    final mineAmount = widget.listing.minePrice?.toInt() ?? (widget.listing.price * _defaultMineMultiplier).round();
-    final stealAmount = widget.listing.stealPrice?.toInt() ?? (widget.listing.price * _defaultStealMultiplier).round();
-    final grabAmount = widget.listing.grabPrice?.toInt() ?? (widget.listing.price * _defaultGrabMultiplier).round();
+    final listing = _listing ?? widget.listing;
+    final mineAmount = listing.minePrice?.toInt() ?? (listing.price * _defaultMineMultiplier).round();
+    final stealAmount = listing.stealPrice?.toInt() ?? (listing.price * _defaultStealMultiplier).round();
+    final grabAmount = listing.grabPrice?.toInt() ?? (listing.price * _defaultGrabMultiplier).round();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F2EE),
@@ -432,15 +450,27 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                       initialData: {'mine': false, 'steal': false, 'grab': false},
                       builder: (context, snapshot) {
                         final lockStatus = snapshot.data ?? {'mine': false, 'steal': false, 'grab': false};
-                        return Row(
-                          children: [
-                            _buildOfferChip('Mine', mineAmount, locked: lockStatus['mine'] == true),
+                        // Conditional UI based on listing status
+                        if (listing.status == 'available') {
+                          return Row(children: [
+                            Expanded(child: ElevatedButton(onPressed: listing.currentOwnerId == null && currentUserId != listing.sellerId ? () => _confirmAndMine(mineAmount) : null, child: Text('Mine ₱$mineAmount'))),
+                          ]);
+                        } else if (listing.status == 'active') {
+                          return Row(children: [
+                            Expanded(child: OutlinedButton(onPressed: currentUserId == null || currentUserId == listing.sellerId ? null : () => _showStealModal(listing), child: const Text('Steal'))),
                             const SizedBox(width: 12),
-                            _buildOfferChip('Steal', stealAmount, locked: lockStatus['steal'] == true),
-                            const SizedBox(width: 12),
-                            _buildOfferChip('Grab', grabAmount, locked: lockStatus['grab'] == true),
-                          ],
-                        );
+                            Expanded(child: ElevatedButton(onPressed: listing.status == 'grabbed' || currentUserId == listing.sellerId ? null : () => _confirmAndGrab(), child: Text('Grab ₱$grabAmount'))),
+                          ]);
+                        } else if (listing.status == 'grabbed') {
+                          return Row(children: [Expanded(child: Center(child: Text('Item grabbed. Ownership finalized.', style: TextStyle(fontWeight: FontWeight.w700)))),]);
+                        }
+                        return Row(children: [
+                          _buildOfferChip('Mine', mineAmount, locked: lockStatus['mine'] == true),
+                          const SizedBox(width: 12),
+                          _buildOfferChip('Steal', stealAmount, locked: lockStatus['steal'] == true),
+                          const SizedBox(width: 12),
+                          _buildOfferChip('Grab', grabAmount, locked: lockStatus['grab'] == true),
+                        ]);
                       },
                     ),
                     const SizedBox(height: 12),
@@ -504,6 +534,46 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     );
   }
 
+  Future<void> _confirmAndMine(int amount) async {
+    await _handleAction('mine', amount);
+  }
+
+  Future<void> _confirmAndGrab() async {
+    // confirm then call grab
+    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Grab this item?'),
+      content: Text('Pay the grab price of ₱${(_listing?.grabPrice ?? widget.listing.grabPrice)?.toInt() ?? 0} to finalize ownership.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Grab'))],
+    ));
+    if (confirmed == true) {
+      await _handleAction('grab', (_listing?.grabPrice ?? widget.listing.grabPrice)?.toInt() ?? 0);
+    }
+  }
+
+  void _showStealModal(ListingModel listing) {
+    final currentPrice = (listing.currentPrice ?? listing.minePrice ?? listing.price).round();
+    final grab = (listing.grabPrice ?? listing.price * _defaultGrabMultiplier).round();
+    final min = currentPrice + 1;
+    final max = grab - 1;
+    if (max < min) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Steal not available (grab price too low).')));
+      return;
+    }
+    int selected = min;
+    showModalBottomSheet(context: context, builder: (ctx) {
+      return StatefulBuilder(builder: (ctx, setModalState) {
+        return Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Steal this item', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Text('Offer between ₱$min and ₱$max'),
+          Slider(value: selected.toDouble(), min: min.toDouble(), max: max.toDouble(), divisions: (max - min) > 0 ? (max - min) : 1, label: '₱$selected', onChanged: (v) { setModalState(() { selected = v.round(); }); }),
+          const SizedBox(height: 12),
+          Row(children: [Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))), const SizedBox(width: 12), Expanded(child: ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleAction('steal', selected); }, child: Text('Steal ₱$selected')))],)
+        ]));
+      });
+    });
+  }
+
   Future<void> _handleEditListing(BuildContext context) async {
     final result = await Navigator.push<bool>(
       context,
@@ -514,25 +584,8 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
 
     // Auto-refresh listing details if edit was successful
     if (result == true && mounted) {
-      _refreshListingData();
+      await _refreshListingData();
     }
-  }
-
-  void _refreshListingData() {
-    // Trigger a rebuild to fetch the latest listing data
-    setState(() {
-      // This will cause the page to rebuild and potentially fetch updated data
-      // In a future enhancement, consider adding a Stream to auto-update from Firestore
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Listing updated successfully!'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
   Widget _buildOfferChip(String label, int amount, {required bool locked}) {
