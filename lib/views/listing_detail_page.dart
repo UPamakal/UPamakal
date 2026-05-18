@@ -7,7 +7,7 @@ import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
 import 'chat_detail_page.dart';
 import 'profile_page.dart';
-import 'login_page.dart';
+import 'edit_listing_page.dart';
 import '../services/image_service.dart';
 import '../services/user_action_service.dart';
 import '../widgets/favorite_button.dart';
@@ -444,44 +444,93 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: isSeller ? null : () => _openChat(context),
-                            icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                            label: const Text('Chat Seller'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF8B0000),
-                              side: const BorderSide(color: Color(0xFF8B0000)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
-                            ),
+                    if (isSeller)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleEditListing(context),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Edit Listing', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8B0000),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                            elevation: 2,
+                            shadowColor: const Color(0xFF8B0000).withOpacity(0.3),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: isSeller ? null : () => _showOfferModal(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF8B0000),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
-                              elevation: 2,
-                              shadowColor: const Color(0xFF8B0000).withOpacity(0.3),
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openChat(context),
+                              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                              label: const Text('Chat Seller'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF8B0000),
+                                side: const BorderSide(color: Color(0xFF8B0000)),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                              ),
                             ),
-                            child: const Text('Make Offer', style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _showOfferModal(context),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF8B0000),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                                elevation: 2,
+                                shadowColor: const Color(0xFF8B0000).withOpacity(0.3),
+                              ),
+                              child: const Text('Make Offer', style: TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handleEditListing(BuildContext context) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditListingPage(listing: widget.listing),
+      ),
+    );
+
+    // Auto-refresh listing details if edit was successful
+    if (result == true && mounted) {
+      _refreshListingData();
+    }
+  }
+
+  void _refreshListingData() {
+    // Trigger a rebuild to fetch the latest listing data
+    setState(() {
+      // This will cause the page to rebuild and potentially fetch updated data
+      // In a future enhancement, consider adding a Stream to auto-update from Firestore
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Listing updated successfully!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
       ),
     );
   }
