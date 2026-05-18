@@ -14,6 +14,7 @@ import 'chat_list_page.dart';
 import 'chat_detail_page.dart';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'create_listing_page.dart';
 import 'edit_listing_page.dart';
 import 'favorites_page.dart';
 import '../repositories/user_repository.dart';
@@ -864,6 +865,23 @@ class _ProfilePageState extends State<ProfilePage> {
               ]
             : [],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const CreateListingPage(),
+            ),
+          );
+          if (result == true) {
+            // Refresh listings if a new one was created
+            setState(() {});
+          }
+        },
+        backgroundColor: AppColors.primary,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: SafeArea(
         top: false,
         child: StreamBuilder<List<ListingModel>>(

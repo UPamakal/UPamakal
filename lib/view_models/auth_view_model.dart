@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../repositories/user_repository.dart';
 
 class AuthViewModel extends ChangeNotifier {
   final AuthService _authService;
+  final UserRepository _userRepository;
 
   UserModel? _user;
   bool _isLoading = false;
@@ -11,13 +13,19 @@ class AuthViewModel extends ChangeNotifier {
   bool _needsProfileCompletion = false;
   bool _wasProfileCompletionForced = false;
 
-  AuthViewModel({required AuthService authService})
-      : _authService = authService {
+  AuthViewModel({required AuthService authService, UserRepository? userRepository})
+      : _authService = authService,
+        _userRepository = userRepository ?? UserRepository() {
     _authService.authStateChanges.listen((user) {
       _user = user;
       _errorMessage = null;
       notifyListeners();
       debugPrint("🔄 Auth state changed: ${user?.email ?? 'NULL'}");
+      
+      // NEW: Automatically fetch full profile data from Firestore after auth state change
+      if (user != null) {
+        _loadFullProfileFromFirestore(user.uid);
+      }
     });
   }
 
@@ -29,7 +37,13 @@ class AuthViewModel extends ChangeNotifier {
   bool get needsProfileCompletion => _needsProfileCompletion;
   bool get wasProfileCompletionForced => _wasProfileCompletionForced;
 
-  // ---------------- Error reset ----------------
+  // NEW: Manually refresh user data from Firestore (called when needed)
+  Future<void> refreshUserFromFirestore() async {
+    if (_user == null) return;
+    await _loadFullProfileFromFirestore(_user!.uid);
+  }
+
+  // ---- Error reset ----------------
   void clearError() {
     _errorMessage = null;
     notifyListeners();
@@ -39,6 +53,31 @@ class AuthViewModel extends ChangeNotifier {
     _needsProfileCompletion = false;
     _wasProfileCompletionForced = false;
     notifyListeners();
+  }
+
+  // NEW: Load full profile data from Firestore and merge with auth user
+  Future<void> _loadFullProfileFromFirestore(String uid) async {
+    try {
+      final fullUser = await _userRepository.getUserById(uid);
+      if (fullUser != null && _user != null) {
+        // Merge Firestore profile data with the basic Firebase user data
+        _user = _user!.copyWith(
+          displayName: fullUser.displayName ?? _user!.displayName,
+          photoURL: fullUser.photoURL ?? _user!.photoURL,
+          userType: fullUser.userType,
+          course: fullUser.course,
+          yearLevel: fullUser.yearLevel,
+          communityRole: fullUser.communityRole,
+          communitySince: fullUser.communitySince,
+          profileCompletedAt: fullUser.profileCompletedAt,
+        );
+        debugPrint("✅ Loaded full profile for ${_user!.email}");
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("⚠️ Failed to load full profile from Firestore: $e");
+      // Don't treat this as a critical error - user can still use the app
+    }
   }
 
   // ---------------- Email Sign Up (UPDATED) ----------------
