@@ -6,12 +6,14 @@ import '../utils/constants.dart';
 import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
 import '../services/listing_service.dart';
+import '../services/review_service.dart';
 import 'chat_detail_page.dart';
 import 'profile_page.dart';
 import 'edit_listing_page.dart';
 import '../services/image_service.dart';
 import '../services/user_action_service.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/rating_widgets.dart';
 
 const double _defaultMineMultiplier = 0.85;
 const double _defaultStealMultiplier = 1.25;
@@ -28,14 +30,33 @@ class ListingDetailPage extends StatefulWidget {
 class _ListingDetailPageState extends State<ListingDetailPage> {
   final UserActionService _actionService = UserActionService();
   final ListingService _listingService = ListingService();
+  final ReviewService _reviewService = ReviewService();
   ListingModel? _listing;
   late Stream<Map<String, bool>> _lockStatusStream;
+  bool _userHasRatedSeller = false;
 
   @override
   void initState() {
     super.initState();
     _listing = widget.listing;
     _lockStatusStream = _actionService.watchActionStatus(widget.listing.id);
+    _checkUserRatingStatus();
+  }
+
+  Future<void> _checkUserRatingStatus() async {
+    final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    final userId = authVM.user?.uid;
+    if (userId != null && userId != widget.listing.sellerId) {
+      final hasRated = await _reviewService.hasUserRatedSeller(
+        widget.listing.sellerId,
+        userId,
+      );
+      if (mounted) {
+        setState(() {
+          _userHasRatedSeller = hasRated;
+        });
+      }
+    }
   }
 
   Future<void> _handleAction(String action, int amount) async {
@@ -54,17 +75,18 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
       return;
     }
 
+    final actionDisplay = action[0].toUpperCase() + action.substring(1);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${action.toUpperCase()} this item?'),
+        title: Text('$actionDisplay this item?'),
         content: Text('Are you sure you want to $action this item for ₱$amount?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: const Color(0xFF8B0000)),
-            child: Text(action),
+            child: Text(actionDisplay),
           ),
         ],
       ),
@@ -82,18 +104,20 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     if (!mounted) return;
 
     if (success) {
+      final actionDisplay = action[0].toUpperCase() + action.substring(1);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$action offer of ₱$amount sent to seller!'),
+          content: Text('$actionDisplay offer of ₱$amount sent to seller!'),
           backgroundColor: Colors.green.shade700,
           behavior: SnackBarBehavior.floating,
         ),
       );
         await _refreshListingData();
     } else {
+      final pastTense = action == 'mine' ? 'mined' : action == 'steal' ? 'stolen' : 'grabbed';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Sorry, someone already ${action}ed this item.'),
+          content: Text('Sorry, someone already $pastTense this item.'),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
         ),
@@ -107,6 +131,77 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     setState(() {
       _listing = updated ?? _listing;
     });
+  }
+
+  void _showRatingDialog() {
+    final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    final currentUserId = authVM.user?.uid;
+    final currentUserName = authVM.user?.displayName ?? authVM.user?.email?.split('@').first ?? 'User';
+
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login to leave a review')),
+      );
+      return;
+    }
+
+    if (currentUserId == widget.listing.sellerId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot rate your own listing')),
+      );
+      return;
+    }
+
+    double selectedRating = 5;
+    String? selectedReview;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => RatingDialog(
+        listingTitle: widget.listing.title,
+        sellerName: widget.listing.sellerName,
+        onSubmit: () async {
+          try {
+            await _reviewService.submitRating(
+              listingId: widget.listing.id,
+              sellerId: widget.listing.sellerId,
+              reviewerId: currentUserId,
+              reviewerName: currentUserName,
+              rating: selectedRating,
+              review: selectedReview,
+            );
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Thank you for your review!'),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+              // Update the rating status (StreamBuilder will auto-refresh the rating)
+              setState(() {
+                _userHasRatedSeller = true;
+              });
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          }
+        },
+        onRatingSelected: (rating, review) {
+          selectedRating = rating;
+          selectedReview = review;
+        },
+      ),
+    );
   }
 
   Future<void> _openChat(BuildContext context) async {
@@ -399,12 +494,19 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(20)),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.star, color: Colors.amber, size: 14),
-                                SizedBox(width: 4),
-                                Text('4.9', style: TextStyle(fontWeight: FontWeight.bold)),
-                              ],
+                            child: StreamBuilder<double>(
+                              stream: _reviewService.streamAverageRating(widget.listing.sellerId),
+                              initialData: 0.0,
+                              builder: (context, snapshot) {
+                                final rating = snapshot.data ?? 0.0;
+                                return Row(
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.amber, size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  ],
+                                );
+                              },
                             ),
                           ),
                         ],
@@ -414,17 +516,39 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                   const SizedBox(height: 16),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(sellerId: widget.listing.sellerId, sellerUser: sellerUser)));
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF8B0000),
-                        side: const BorderSide(color: Color(0xFFE5E5E5)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
-                      ),
-                      child: const Text('View Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(sellerId: widget.listing.sellerId, sellerUser: sellerUser)));
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF8B0000),
+                              side: const BorderSide(color: Color(0xFFE5E5E5)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                            ),
+                            child: const Text('View Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _userHasRatedSeller ? null : _showRatingDialog,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF8B0000),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                            ),
+                            child: Text(
+                              _userHasRatedSeller ? 'Already Rated' : 'Rate Seller',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -539,39 +663,139 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   }
 
   Future<void> _confirmAndGrab() async {
-    // confirm then call grab
-    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Grab this item?'),
-      content: Text('Pay the grab price of ₱${(_listing?.grabPrice ?? widget.listing.grabPrice)?.toInt() ?? 0} to finalize ownership.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Grab'))],
-    ));
+    final listing = _listing ?? widget.listing;
+    final grabPrice = listing.grabPrice?.toInt() ?? (listing.price * _defaultGrabMultiplier).round();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Grab this item?'),
+        content: Text('Pay ₱$grabPrice to finalize ownership immediately.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF8B0000)),
+            child: const Text('Grab'),
+          ),
+        ],
+      ),
+    );
     if (confirmed == true) {
-      await _handleAction('grab', (_listing?.grabPrice ?? widget.listing.grabPrice)?.toInt() ?? 0);
+      await _handleAction('grab', grabPrice);
     }
   }
 
   void _showStealModal(ListingModel listing) {
     final currentPrice = (listing.currentPrice ?? listing.minePrice ?? listing.price).round();
-    final grab = (listing.grabPrice ?? listing.price * _defaultGrabMultiplier).round();
+    final grabPrice = (listing.grabPrice ?? listing.price * _defaultGrabMultiplier).round();
     final min = currentPrice + 1;
-    final max = grab - 1;
+    final max = grabPrice - 1;
     if (max < min) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Steal not available (grab price too low).')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Steal not available - grab price is too close to current offer.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     int selected = min;
-    showModalBottomSheet(context: context, builder: (ctx) {
-      return StatefulBuilder(builder: (ctx, setModalState) {
-        return Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Steal this item', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Text('Offer between ₱$min and ₱$max'),
-          Slider(value: selected.toDouble(), min: min.toDouble(), max: max.toDouble(), divisions: (max - min) > 0 ? (max - min) : 1, label: '₱$selected', onChanged: (v) { setModalState(() { selected = v.round(); }); }),
-          const SizedBox(height: 12),
-          Row(children: [Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))), const SizedBox(width: 12), Expanded(child: ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleAction('steal', selected); }, child: Text('Steal ₱$selected')))],)
-        ]));
-      });
-    });
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Steal this item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Offer between ₱$min and ₱${max - 1}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F2EE),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Your offer:', style: TextStyle(fontWeight: FontWeight.w600)),
+                          Text('₱$selected', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF8B0000))),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Slider(
+                      value: selected.toDouble(),
+                      min: min.toDouble(),
+                      max: max.toDouble(),
+                      divisions: (max - min) > 0 ? (max - min) : 1,
+                      label: '₱$selected',
+                      onChanged: (v) {
+                        setModalState(() {
+                          selected = v.round();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF8B0000),
+                              side: const BorderSide(color: Color(0xFF8B0000)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _handleAction('steal', selected);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF8B0000),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                              elevation: 2,
+                              shadowColor: const Color(0xFF8B0000).withOpacity(0.3),
+                            ),
+                            child: Text('Steal ₱$selected', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleEditListing(BuildContext context) async {
