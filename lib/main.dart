@@ -13,6 +13,7 @@ import 'services/listing_service.dart';
 import 'services/chat_service.dart';
 import 'services/fcm_service.dart';
 import 'views/chat_detail_page.dart';
+import 'repositories/user_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,7 +56,10 @@ void main() async {
           create: (_) => listingService,
         ),
         ChangeNotifierProvider<AuthViewModel>(
-          create: (context) => AuthViewModel(authService: authService),
+          create: (context) => AuthViewModel(
+            authService: authService,
+            userRepository: UserRepository(),
+          ),
         ),
         ChangeNotifierProvider<LandingViewModel>(
           create: (context) => LandingViewModel(),

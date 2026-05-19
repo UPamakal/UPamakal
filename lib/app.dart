@@ -105,6 +105,12 @@ class _AuthGate extends StatelessWidget {
       return const LoginPage();
     }
     
+    // FIXED: Wait for profile data to load from Firestore before deciding route
+    // This prevents showing ProfileCompletionPage on hot restart when userType hasn't loaded yet
+    if (authVM.isLoadingProfileData) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
     // User is authenticated. Check if profile is complete.
     final user = authVM.user;
     final hasCompleteProfile = user?.userType != null;

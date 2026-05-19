@@ -18,6 +18,9 @@ class ListingModel {
   final double? minePrice;
   final double? stealPrice;
   final double? grabPrice;
+  final double? currentPrice;
+  final String? currentOwnerId;
+  final String status; // available | active | grabbed | completed
   final bool mineTaken;
   final bool stealTaken;
   final bool grabTaken;
@@ -40,6 +43,9 @@ class ListingModel {
     this.minePrice,
     this.stealPrice,
     this.grabPrice,
+    this.currentPrice,
+    this.currentOwnerId,
+    this.status = 'available',
     this.mineTaken = false,
     this.stealTaken = false,
     this.grabTaken = false,
@@ -71,6 +77,9 @@ class ListingModel {
       minePrice: (data['minePrice'] as num?)?.toDouble(),
       stealPrice: (data['stealPrice'] as num?)?.toDouble(),
       grabPrice: (data['grabPrice'] as num?)?.toDouble(),
+      currentPrice: (data['currentPrice'] as num?)?.toDouble() ?? (data['minePrice'] as num?)?.toDouble(),
+      currentOwnerId: data['currentOwnerId'] as String?,
+      status: (data['status'] as String?) ?? 'available',
       mineTaken: data['mineTaken'] ?? false,
       stealTaken: data['stealTaken'] ?? false,
       grabTaken: data['grabTaken'] ?? false,
@@ -94,6 +103,9 @@ class ListingModel {
       if (minePrice != null) 'minePrice': minePrice,
       if (stealPrice != null) 'stealPrice': stealPrice,
       if (grabPrice != null) 'grabPrice': grabPrice,
+      if (currentPrice != null) 'currentPrice': currentPrice,
+      if (currentOwnerId != null) 'currentOwnerId': currentOwnerId,
+      'status': status,
       'mineTaken': mineTaken,
       'stealTaken': stealTaken,
       'grabTaken': grabTaken,
@@ -118,6 +130,9 @@ class ListingModel {
     double? minePrice,
     double? stealPrice,
     double? grabPrice,
+    double? currentPrice,
+    String? currentOwnerId,
+    String? status,
     bool? mineTaken,
     bool? stealTaken,
     bool? grabTaken,
@@ -140,6 +155,9 @@ class ListingModel {
       minePrice: minePrice ?? this.minePrice,
       stealPrice: stealPrice ?? this.stealPrice,
       grabPrice: grabPrice ?? this.grabPrice,
+      currentPrice: currentPrice ?? this.currentPrice,
+      currentOwnerId: currentOwnerId ?? this.currentOwnerId,
+      status: status ?? this.status,
       mineTaken: mineTaken ?? this.mineTaken,
       stealTaken: stealTaken ?? this.stealTaken,
       grabTaken: grabTaken ?? this.grabTaken,

@@ -14,9 +14,12 @@ import 'chat_list_page.dart';
 import 'chat_detail_page.dart';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'create_listing_page.dart';
 import 'edit_listing_page.dart';
 import 'favorites_page.dart';
 import '../repositories/user_repository.dart';
+import '../services/review_service.dart';
+import '../widgets/rating_widgets.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? sellerId;
@@ -30,6 +33,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final ListingService _listingService = ListingService();
+  final ReviewService _reviewService = ReviewService();
   late bool _isOwnProfile;
   late String _profileUserId;
   Stream<List<ListingModel>>? _cachedStream;
@@ -56,6 +60,19 @@ class _ProfilePageState extends State<ProfilePage> {
     // NEW: Refresh own user data from Firestore to get latest profile fields
     if (_isOwnProfile) {
       _refreshOwnUserData();
+    }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    if (_isOwnProfile) {
+      // Refresh own user data when page is resumed/revisited
+      _refreshOwnUserData();
+    } else if (widget.sellerId != null && widget.sellerUser == null) {
+      // Fetch seller user data if not provided as parameter
+      _fetchSellerUser();
     }
   }
 
@@ -97,10 +114,13 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isLoadingUser = true);
     try {
       final userRepo = UserRepository();
-      final userDoc = await userRepo.getUserById(_profileUserId);
+      final userDoc = await userRepo.getUserById(widget.sellerId!);
       
-      if (userDoc != null) {
-        _fetchedSellerUser = userDoc;
+      if (userDoc != null && mounted) {
+        setState(() {
+          _fetchedSellerUser = userDoc;
+          _profileUserId = widget.sellerId!;
+        });
       }
     } catch (e) {
       debugPrint('Error fetching seller: $e');
@@ -812,6 +832,9 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
     
+    // Determine the seller ID to use for ratings
+    final sellerId = _isOwnProfile ? (user?.uid ?? '') : (widget.sellerId ?? '');
+    
     // NEW: Determine which user to display
     UserModel? displayUser;
     if (_isOwnProfile) {
@@ -866,6 +889,23 @@ class _ProfilePageState extends State<ProfilePage> {
               ]
             : [],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const CreateListingPage(),
+            ),
+          );
+          if (result == true) {
+            // Refresh listings if a new one was created
+            setState(() {});
+          }
+        },
+        backgroundColor: AppColors.primary,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: SafeArea(
         top: false,
         child: StreamBuilder<List<ListingModel>>(
@@ -964,6 +1004,35 @@ class _ProfilePageState extends State<ProfilePage> {
                                     color: AppColors.textSecondary,
                                     decoration: TextDecoration.underline,
                                   ),
+                                ),
+                                const SizedBox(height: 12),
+                                
+                                // Average Rating
+                                StreamBuilder<double>(
+                                  stream: _reviewService.streamAverageRating(sellerId),
+                                  initialData: 0.0,
+                                  builder: (context, snapshot) {
+                                    final rating = snapshot.data ?? 0.0;
+                                    return Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.star,
+                                          size: 16,
+                                          color: rating > 0 ? Colors.amber : Colors.grey.shade300,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          rating > 0 ? rating.toStringAsFixed(1) : 'No ratings',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: rating > 0 ? Colors.amber : AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 ),
                                 const SizedBox(height: 8),
                                 
@@ -1077,7 +1146,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                       height: 28,
                                       color: Colors.grey.shade300,
                                     ),
-                                    _buildStatValue('4.9', 'Rating'),
+                                    StreamBuilder<double>(
+                                      stream: _reviewService.streamAverageRating(sellerId),
+                                      initialData: 0.0,
+                                      builder: (context, snapshot) {
+                                        final rating = snapshot.data ?? 0.0;
+                                        return _buildStatValue(rating.toStringAsFixed(1), 'Rating');
+                                      },
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 14),

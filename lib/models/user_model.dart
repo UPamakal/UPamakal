@@ -47,6 +47,9 @@ class UserModel {
   /// NEW: When profile was completed (null if never completed)
   final DateTime? profileCompletedAt;
 
+  /// Average rating as a seller (1-5 stars)
+  final double? averageRating;
+
   const UserModel({
     required this.uid,
     this.email,
@@ -62,6 +65,7 @@ class UserModel {
     this.communityRole,
     this.communitySince,
     this.profileCompletedAt,
+    this.averageRating,
   });
 
   // ---- Factory constructors -----------------------------------------------
@@ -118,6 +122,7 @@ class UserModel {
       communityRole: data['communityRole'] as String?,
       communitySince: data['communitySince'] as int?,
       profileCompletedAt: profileCompletedAt,
+      averageRating: (data['averageRating'] as num?)?.toDouble(),
     );
   }
 
@@ -137,6 +142,7 @@ class UserModel {
       if (communityRole != null) 'communityRole': communityRole,
       if (communitySince != null) 'communitySince': communitySince,
       if (profileCompletedAt != null) 'profileCompletedAt': profileCompletedAt,
+      if (averageRating != null) 'averageRating': averageRating,
     };
   }
 
@@ -200,6 +206,7 @@ class UserModel {
     String? communityRole,
     int? communitySince,
     DateTime? profileCompletedAt,
+    double? averageRating,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -216,6 +223,7 @@ class UserModel {
       communityRole: communityRole ?? this.communityRole,
       communitySince: communitySince ?? this.communitySince,
       profileCompletedAt: profileCompletedAt ?? this.profileCompletedAt,
+      averageRating: averageRating ?? this.averageRating,
     );
   }
 
