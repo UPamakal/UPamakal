@@ -12,6 +12,7 @@ import 'services/auth_service.dart';
 import 'services/listing_service.dart';
 import 'services/chat_service.dart';
 import 'services/fcm_service.dart';
+import 'services/user_service.dart';
 import 'views/chat_detail_page.dart';
 import 'repositories/user_repository.dart';
 
@@ -54,6 +55,9 @@ void main() async {
         // via context.read<ListingService>() without a ProviderNotFoundException.
         Provider<ListingService>(
           create: (_) => listingService,
+        ),
+        Provider<UserService>(
+          create: (_) => UserService(),
         ),
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(
