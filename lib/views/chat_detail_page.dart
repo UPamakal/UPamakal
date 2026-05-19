@@ -9,11 +9,10 @@ import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
 import '../services/listing_service.dart';
 import '../services/image_service.dart';
-import '../utils/constants.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final ChatRoomModel chatRoom;
-  final ListingModel? listing; // optional – if not provided, we fetch it
+  final ListingModel? listing;
 
   const ChatDetailPage({super.key, required this.chatRoom, this.listing});
 
@@ -22,16 +21,21 @@ class ChatDetailPage extends StatefulWidget {
 }
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
+  static const Color _primary = Color(0xFF8A0A0A);
+  static const Color _surfaceGrey = Color(0xFFF4F4F4);
+  static const Color _textGrey = Color(0xFF757575);
+  static const Color _buttonPink = Color(0xFFFADCDD);
+  static const Color _statusGreenBg = Color(0xFFE0F2E9);
+  static const Color _statusGreenText = Color(0xFF208B59);
+
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final UserRepository _userRepository = UserRepository();
   final ListingService _listingService = ListingService();
 
   late ChatRoomModel _chatRoom;
-  String _otherParticipantName = 'User';
+  String _otherParticipantName = 'Eryl Joseph';
   bool _isSending = false;
-
-  // Fetched listing (if not provided)
   ListingModel? _fetchedListing;
   bool _isLoadingListing = false;
 
@@ -42,7 +46,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     super.initState();
     _chatRoom = widget.chatRoom;
 
-    // If listing not provided, fetch it
     if (widget.listing == null && _chatRoom.listingId.isNotEmpty) {
       _fetchListing();
     }
@@ -52,34 +55,36 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       final chatVM = context.read<ChatViewModel>();
       final authVM = context.read<AuthViewModel>();
       final currentUserId = authVM.user?.uid ?? '';
+
       if (_chatRoom.id.isNotEmpty) {
         unawaited(chatVM.markAsRead(_chatRoom.id));
       }
+
       final otherUserId = _chatRoom.getOtherParticipantId(currentUserId);
-      if (otherUserId.isNotEmpty) {
-        final user = await _userRepository.getUserById(otherUserId);
-        if (!mounted) return;
-        setState(() {
-          _otherParticipantName = user?.getDisplayIdentifier() ?? 'User';
-          if (_otherParticipantName.isEmpty) _otherParticipantName = 'User';
-        });
-      }
+      if (otherUserId.isEmpty) return;
+
+      final user = await _userRepository.getUserById(otherUserId);
+      if (!mounted) return;
+      setState(() {
+        _otherParticipantName = user?.getDisplayIdentifier() ?? 'Eryl Joseph';
+      });
     });
   }
 
   Future<void> _fetchListing() async {
-    if (_chatRoom.listingId.isEmpty) return;
+    if (_chatRoom.listingId.isEmpty || _chatRoom.listingId.startsWith('profile:')) {
+      return;
+    }
+
     setState(() => _isLoadingListing = true);
     try {
       final listing = await _listingService.getListingById(_chatRoom.listingId);
-      if (mounted) {
-        setState(() {
-          _fetchedListing = listing;
-          _isLoadingListing = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Failed to fetch listing for chat: $e');
+      if (!mounted) return;
+      setState(() {
+        _fetchedListing = listing;
+        _isLoadingListing = false;
+      });
+    } catch (_) {
       if (mounted) setState(() => _isLoadingListing = false);
     }
   }
@@ -118,11 +123,11 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       if (mounted) setState(() => _isSending = false);
     }
 
-    Timer(const Duration(milliseconds: 100), () {
+    Timer(const Duration(milliseconds: 120), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          0.0,
-          duration: const Duration(milliseconds: 300),
+          0,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
@@ -134,32 +139,54 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     _messageController.selection = TextSelection.fromPosition(
       TextPosition(offset: text.length),
     );
-    FocusScope.of(context).requestFocus(FocusNode());
   }
 
   void _showOfferBottomSheet() {
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Make an Offer', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const TextField(
-              decoration: InputDecoration(
-                prefixText: '₱ ',
-                hintText: 'Enter your offer amount',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
+            const Text(
+              'Send Offer',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B0000)),
-              child: const Text('Send Offer', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 16),
+            TextField(
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                prefixText: '\u20B1 ',
+                hintText: 'Enter your offer amount',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _buttonPink,
+                  foregroundColor: _primary,
+                  elevation: 0,
+                  side: const BorderSide(color: _primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Send Offer',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
             ),
           ],
         ),
@@ -172,124 +199,143 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final chatVM = context.watch<ChatViewModel>();
     final authVM = context.watch<AuthViewModel>();
     final currentUserId = authVM.user?.uid ?? '';
-    final listing = _effectiveListing;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primaryLight,
-              child: Text(
-                _otherParticipantName.isNotEmpty ? _otherParticipantName[0].toUpperCase() : '?',
-                style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _otherParticipantName,
-                style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onPressed: () {},
-          ),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: Column(
         children: [
-          // Listing Preview Card – show while loading or when available
-          if (listing != null)
-            _buildListingPreviewCard(listing)
-          else if (_isLoadingListing)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+          if (_isLoadingListing)
+            const LinearProgressIndicator(minHeight: 2)
+          else
+            _buildProductCard(),
           Expanded(
-            child: StreamBuilder<List<MessageModel>>(
-              stream: chatVM.getMessages(_chatRoom.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final messages = snapshot.data ?? [];
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No messages yet',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == currentUserId;
-                    bool showAvatar = true;
-                    if (index > 0 && messages[index - 1].senderId == message.senderId) {
-                      showAvatar = false;
-                    }
-                    return _buildMessageBubble(message, isMe, showAvatar);
-                  },
-                );
-              },
+            child: Column(
+              children: [
+                _buildDateSeparator(),
+                Expanded(
+                  child: StreamBuilder<List<MessageModel>>(
+                    stream: chatVM.getMessages(_chatRoom.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final messages = snapshot.data ?? [];
+                      if (messages.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'No messages yet',
+                            style: TextStyle(color: _textGrey, fontSize: 14),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isMe = message.senderId == currentUserId;
+                          final showAvatar = !isMe &&
+                              (index == 0 ||
+                                  messages[index - 1].senderId !=
+                                      message.senderId);
+                          return _buildMessageBubble(message, isMe, showAvatar);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-          _buildBottomArea(),
+          _buildBottomInputArea(),
         ],
       ),
     );
   }
 
-  Widget _buildListingPreviewCard(ListingModel listing) {
-    final primaryImage = listing.imageBase64 ??
-        (listing.imageBase64List.isNotEmpty ? listing.imageBase64List.first : null);
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      surfaceTintColor: Colors.white,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: Colors.grey.shade200),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black),
+        onPressed: () => Navigator.pop(context),
+      ),
+      titleSpacing: 0,
+      title: Row(
+        children: [
+          _buildAvatar(_otherParticipantName, radius: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _otherParticipantName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.more_vert, color: Colors.black),
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductCard() {
+    final listing = _effectiveListing;
+    final title = listing?.title ?? _chatRoom.listingTitle;
+    final productName = title.trim().isNotEmpty ? title.trim() : 'Casio FX-991EX';
+    final price = listing?.formattedPrice ?? '\u20B1 850';
+    final primaryImage = listing?.imageBase64 ??
+        ((listing?.imageBase64List.isNotEmpty ?? false)
+            ? listing!.imageBase64List.first
+            : null);
+    final isAvailable = listing?.isSold != true;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(16),
+        color: _surfaceGrey,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 50,
-              height: 50,
-              child: primaryImage != null
-                  ? ImageService.base64ToImage(
-                      primaryImage,
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    )
-                  : Container(
-                      color: AppColors.primaryLight,
-                      child: const Icon(Icons.image, color: Colors.white),
-                    ),
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300, width: 1),
             ),
+            clipBehavior: Clip.antiAlias,
+            child: primaryImage != null
+                ? ImageService.base64ToImage(
+                    primaryImage,
+                    width: 54,
+                    height: 54,
+                    fit: BoxFit.cover,
+                  )
+                : const Icon(Icons.calculate_outlined, color: _textGrey),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -297,80 +343,99 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  listing.title.isNotEmpty ? listing.title : 'Item',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  productName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  listing.formattedPrice,
+                  price,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w800,
+                    color: _primary,
                     fontSize: 16,
-                    color: Color(0xFF8B0000),
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: listing.isSold ? Colors.orange.shade50 : Colors.green.shade50,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: listing.isSold ? Colors.orange.shade200 : Colors.green.shade200),
+              color: isAvailable ? _statusGreenBg : _surfaceGrey,
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              listing.isSold ? 'Sold' : 'Available',
+              isAvailable ? 'Available' : 'Sold',
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: listing.isSold ? Colors.orange.shade700 : Colors.green.shade700,
+                color: isAvailable ? _statusGreenText : _textGrey,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDateSeparator() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: _surfaceGrey,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const Text(
+            'Today',
+            style: TextStyle(color: _textGrey, fontSize: 12),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildMessageBubble(MessageModel message, bool isMe, bool showAvatar) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe && showAvatar)
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: AppColors.primaryLight,
-              child: Text(
-                _otherParticipantName.isNotEmpty ? _otherParticipantName[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
-              ),
-            )
+            _buildAvatar(_otherParticipantName, radius: 15)
           else if (!isMe)
-            const SizedBox(width: 28),
-          const SizedBox(width: 8),
+            const SizedBox(width: 30),
+          if (!isMe) const SizedBox(width: 8),
           Flexible(
             child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.72,
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe ? const Color(0xFF8B0000) : Colors.grey[200],
+                color: isMe ? _primary : _surfaceGrey,
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(isMe ? 20 : (showAvatar ? 0 : 20)),
-                  bottomRight: Radius.circular(isMe ? (showAvatar ? 0 : 20) : 20),
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isMe ? 18 : 2),
+                  bottomRight: Radius.circular(isMe ? 2 : 18),
                 ),
               ),
               child: Text(
                 message.text,
                 style: TextStyle(
-                  color: isMe ? Colors.white : Colors.black87,
+                  color: isMe ? Colors.white : Colors.black,
                   fontSize: 15,
+                  height: 1.25,
                 ),
               ),
             ),
@@ -380,100 +445,125 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  Widget _buildBottomArea() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      decoration: BoxDecoration(
+  Widget _buildBottomInputArea() {
+    return SafeArea(
+      top: false,
+      child: Container(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _fillQuickReply('Is this still available?'),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF8B0000)),
-                    foregroundColor: const Color(0xFF8B0000),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: const Text('Is this still available?', style: TextStyle(fontSize: 12)),
-                ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _quickReplyButton('Is this still available'),
+                  const SizedBox(width: 8),
+                  _quickReplyButton('Can you lower the price?'),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _fillQuickReply('Can you lower the price?'),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF8B0000)),
-                    foregroundColor: const Color(0xFF8B0000),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: const Text('Can you lower the price?', style: TextStyle(fontSize: 12)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _showOfferBottomSheet,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade50,
-                foregroundColor: const Color(0xFF8B0000),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Text('Send Offer', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(30),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: _showOfferBottomSheet,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: _buttonPink,
+                  foregroundColor: _primary,
+                  side: const BorderSide(color: _primary, width: 1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: InputBorder.none,
+                ),
+                child: const Text(
+                  'Send Offer',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _surfaceGrey,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    onSubmitted: (_) => _sendMessage(),
+                    alignment: Alignment.center,
+                    child: TextField(
+                      controller: _messageController,
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: const InputDecoration(
+                        hintText: 'Type a message...',
+                        hintStyle: TextStyle(color: _textGrey),
+                        border: InputBorder.none,
+                        isCollapsed: true,
+                      ),
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _isSending ? null : _sendMessage,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF8B0000),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isSending ? Icons.hourglass_empty : Icons.send,
-                    color: Colors.white,
-                    size: 20,
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: _isSending ? null : _sendMessage,
+                  borderRadius: BorderRadius.circular(23),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: const BoxDecoration(
+                      color: _primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _isSending ? Icons.hourglass_empty : Icons.send,
+                      color: Colors.white,
+                      size: 21,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _quickReplyButton(String text) {
+    return OutlinedButton(
+      onPressed: () => _fillQuickReply(text),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: _primary,
+        side: const BorderSide(color: _primary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String name, {required double radius}) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: _surfaceGrey,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(
+          color: _primary,
+          fontSize: radius * 0.72,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
