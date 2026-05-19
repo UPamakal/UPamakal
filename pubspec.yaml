@@ -10,32 +10,34 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Icons for iOS-style widgets
+  # Firebase
   firebase_core: ^3.8.0
   firebase_auth: ^5.3.3
   cloud_firestore: ^5.5.0
   firebase_storage: ^12.3.6
   firebase_messaging: ^15.2.0
   flutter_local_notifications: ^18.0.1
-  
+
   # Google Sign In
   google_sign_in: ^6.2.2
-  
-  # Image Picker
+
+  # Image Picker & processing
   image_picker: ^1.1.2
   image: ^4.1.3
-  
+
   # Storage
   shared_preferences: ^2.3.2
   intl: ^0.19.0
-  
+
   # State Management
   provider: ^6.1.2
 
+  # Networking & Cloudinary
   cloudinary_public: ^0.23.1
   http: ^1.2.0
   dio: ^5.4.0
 
+  # Environment variables
   flutter_dotenv: ^5.1.0
   envied: ^0.5.3
 
@@ -44,13 +46,39 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+  # Code generation
   build_runner: ^2.4.0
   envied_generator: ^0.5.3
+
+  # Icon & splash generators
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
 
-  # Assets directory for logo and future images
   assets:
     - assets/images/
     - .env
+
+# ============================================================
+# APP ICON (Launcher icon)
+# ============================================================
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/UPamakal (2).png"
+  adaptive_icon_background: "#6B0000"
+  adaptive_icon_foreground: "assets/images/UPamakal (2).png"
+  min_sdk_android: 21
+
+# pubspec.yaml - flutter_native_splash
+flutter_native_splash:
+  color: "#6B0000"
+  image: assets/images/UPamakal (2).png
+  android: true
+  ios: true
+  android_12:
+    image: assets/images/UPamakal (2).png
+    color: "#6B0000"
+    icon_background_color: "#6B0000"

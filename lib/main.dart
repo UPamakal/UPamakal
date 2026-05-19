@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';  // <-- add this import
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -16,20 +17,27 @@ import 'views/chat_detail_page.dart';
 import 'repositories/user_repository.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Ensure Flutter binding is initialized (required for both Firebase and splash)
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
 
+  // Preserve the native splash screen – it will stay visible until we call remove()
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  // Load environment variables
   await dotenv.load(fileName: ".env");
 
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Create service instances (these are synchronous)
   final authService = AuthService();
   final listingService = ListingService();
   final chatService = ChatService();
   final fcmService = FCMService();
   final navigatorKey = GlobalKey<NavigatorState>();
 
+  // Set up chat open handler for notifications
   fcmService.setChatOpenHandler((chatRoomId) async {
     final context = navigatorKey.currentContext;
     if (context == null) return;
@@ -46,12 +54,12 @@ void main() async {
     );
   });
 
+  // All async initialization is done – remove the splash screen
+  FlutterNativeSplash.remove();
+
   runApp(
     MultiProvider(
       providers: [
-        // Expose ListingService itself so any widget deeper in the tree
-        // (e.g. SearchViewModel created inside a pushed route) can read it
-        // via context.read<ListingService>() without a ProviderNotFoundException.
         Provider<ListingService>(
           create: (_) => listingService,
         ),
