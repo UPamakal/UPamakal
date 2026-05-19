@@ -21,20 +21,24 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final UserRepository _userRepository = UserRepository();
+  late ChatRoomModel _chatRoom;
   String _otherParticipantName = 'User';
   bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
+    _chatRoom = widget.chatRoom;
     // Mark as read when entering the room
     Future.microtask(() async {
       if (!mounted) return;
       final chatVM = context.read<ChatViewModel>();
       final authVM = context.read<AuthViewModel>();
       final currentUserId = authVM.user?.uid ?? '';
-      unawaited(chatVM.markAsRead(widget.chatRoom.id));
-      final otherUserId = widget.chatRoom.getOtherParticipantId(currentUserId);
+      if (_chatRoom.id.isNotEmpty) {
+        unawaited(chatVM.markAsRead(_chatRoom.id));
+      }
+      final otherUserId = _chatRoom.getOtherParticipantId(currentUserId);
       if (otherUserId.isNotEmpty) {
         final user = await _userRepository.getUserById(otherUserId);
         if (!mounted) return;
@@ -59,11 +63,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final chatVM = context.read<ChatViewModel>();
     final authVM = context.read<AuthViewModel>();
     final currentUserId = authVM.user?.uid ?? '';
-    final receiverId = widget.chatRoom.getOtherParticipantId(currentUserId);
+    final receiverId = _chatRoom.getOtherParticipantId(currentUserId);
 
     setState(() => _isSending = true);
     try {
-      await chatVM.sendMessage(widget.chatRoom.id, receiverId, text);
+      final savedRoom = await chatVM.sendMessageInRoom(_chatRoom, receiverId, text);
+      if (mounted && savedRoom.id != _chatRoom.id) {
+        setState(() => _chatRoom = savedRoom);
+      }
       _messageController.clear();
     } catch (e) {
       if (mounted) {
@@ -102,7 +109,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           // Messages List
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
-              stream: chatVM.getMessages(widget.chatRoom.id),
+              stream: chatVM.getMessages(_chatRoom.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -165,8 +172,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             radius: 18,
             backgroundColor: AppColors.primaryLight,
             child: Text(
-              widget.chatRoom.listingTitle.isNotEmpty 
-                  ? widget.chatRoom.listingTitle[0].toUpperCase() 
+              _chatRoom.listingTitle.isNotEmpty 
+                  ? _chatRoom.listingTitle[0].toUpperCase() 
                   : '?',
               style: const TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.bold),
             ),
@@ -182,7 +189,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  widget.chatRoom.listingTitle,
+                  _chatRoom.listingTitle,
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),

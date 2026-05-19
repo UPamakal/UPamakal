@@ -36,10 +36,10 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/chat_rooms/$(chatRoomId)).data.participants;
 
         allow create: if isSignedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/chat_rooms/$(chatRoomId)).data.participants
+          && request.auth.uid in getAfter(/databases/$(database)/documents/chat_rooms/$(chatRoomId)).data.participants
           && request.resource.data.chatRoomId == chatRoomId
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.receiverId in get(/databases/$(database)/documents/chat_rooms/$(chatRoomId)).data.participants
+          && request.resource.data.receiverId in getAfter(/databases/$(database)/documents/chat_rooms/$(chatRoomId)).data.participants
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 2000;

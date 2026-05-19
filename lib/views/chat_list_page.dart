@@ -46,6 +46,10 @@ class _ChatListPageState extends State<ChatListPage> {
     final currentUserId = authVM.user?.uid ?? '';
     final query = _searchController.text.trim().toLowerCase();
     final rooms = chatVM.chatRooms.where((room) {
+      if (currentUserId.isEmpty || !room.participants.contains(currentUserId)) {
+        return false;
+      }
+
       _loadOtherParticipantName(room, currentUserId);
       final otherUserId = room.getOtherParticipantId(currentUserId);
       final otherName = _participantNames[otherUserId] ?? '';
@@ -102,6 +106,8 @@ class _ChatListPageState extends State<ChatListPage> {
           Expanded(
             child: chatVM.isLoadingRooms
                 ? const Center(child: CircularProgressIndicator())
+                : chatVM.error != null
+                    ? _buildErrorState(chatVM.error!)
                 : rooms.isEmpty
                     ? _buildEmptyState()
                     : ListView.builder(
@@ -138,6 +144,32 @@ class _ChatListPageState extends State<ChatListPage> {
             style: TextStyle(color: Colors.grey[500]),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 72, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            const Text(
+              'Could not load conversations',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

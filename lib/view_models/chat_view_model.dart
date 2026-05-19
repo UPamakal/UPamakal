@@ -61,7 +61,9 @@ class ChatViewModel extends ChangeNotifier {
     _roomsSubscription?.cancel();
     _roomsSubscription = _chatService.getChatRooms(_currentUserId).listen(
       (rooms) {
-        _chatRooms = rooms;
+        _chatRooms = rooms
+            .where((room) => room.participants.contains(_currentUserId))
+            .toList();
         _isLoadingRooms = false;
         _error = null;
         notifyListeners();
@@ -111,6 +113,24 @@ class ChatViewModel extends ChangeNotifier {
     );
 
     await _chatService.sendMessage(message);
+  }
+
+  Future<ChatRoomModel> sendMessageInRoom(
+    ChatRoomModel room,
+    String receiverId,
+    String text,
+  ) async {
+    if (text.trim().isEmpty) return room;
+    if (_currentUserId.isEmpty) {
+      throw StateError('You must be logged in to send a message.');
+    }
+
+    return _chatService.sendMessageInRoom(
+      room: room,
+      senderId: _currentUserId,
+      receiverId: receiverId,
+      text: text,
+    );
   }
 
   /// Listen to messages in a room
