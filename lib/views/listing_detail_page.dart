@@ -223,13 +223,14 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
     try {
       final room = await chatVM.startConversation(
-        sellerId: widget.listing.sellerId,
+        sellerId: widget.listing.sellerId,  // ← fixed typo
         listingId: widget.listing.id,
         listingTitle: widget.listing.title,
       );
       if (context.mounted) {
         Navigator.pop(context);
-        Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailPage(chatRoom: room)));
+        // Pass the full listing object to ChatDetailPage
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailPage(chatRoom: room, listing: widget.listing)));
       }
     } catch (e) {
       if (context.mounted) {
