@@ -86,6 +86,14 @@ class UserRepository {
     return doc.exists;
   }
 
+  Future<List<UserModel>> getAllUsers() async {
+    final snapshot = await _users.get();
+    return snapshot.docs
+        .where((doc) => doc.data()['displayName'] != null || doc.data()['email'] != null)
+        .map((doc) => UserModel.fromFirestore(doc.data()))
+        .toList();
+  }
+
   // ---- Favorites -----------------------------------------------------------
 
   Future<void> addFavorite({

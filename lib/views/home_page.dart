@@ -9,6 +9,8 @@ import '../models/user_model.dart';
 import '../models/listing_model.dart';
 import '../services/image_service.dart';
 import '../services/listing_service.dart';
+import '../services/user_service.dart';
+import '../view_models/user_search_view_model.dart';
 import 'create_listing_page.dart';
 import 'chat_list_page.dart';
 import 'profile_page.dart';
@@ -90,6 +92,11 @@ class _HomePageState extends State<HomePage> {
             ChangeNotifierProvider(
               create: (ctx) => SearchViewModel(
                 listingService: ctx.read<ListingService>(),
+              ),
+            ),
+            ChangeNotifierProvider(
+              create: (ctx) => UserSearchViewModel(
+                userService: ctx.read<UserService>(),
               ),
             ),
           ],
