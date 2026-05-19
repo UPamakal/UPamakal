@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../view_models/search_view_model.dart';
+import '../view_models/user_search_view_model.dart';
 import '../models/listing_model.dart';
 import '../services/image_service.dart';
 import '../utils/constants.dart';
+import '../widgets/user_search_card.dart';
 import 'listing_detail_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -16,6 +18,7 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   late TextEditingController _searchController;
   final FocusNode _searchFocusNode = FocusNode();
+  bool _isPeopleTab = false;
 
   @override
   void initState() {
@@ -37,11 +40,11 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final searchVM = context.watch<SearchViewModel>();
+    final userSearchVM = context.watch<UserSearchViewModel>();
 
-    // Sync text field with VM when VM changes externally
-    if (_searchController.text != searchVM.searchQuery) {
-      _searchController.text = searchVM.searchQuery;
-      // Keep cursor at end
+    final activeQuery = _isPeopleTab ? userSearchVM.searchQuery : searchVM.searchQuery;
+    if (_searchController.text != activeQuery) {
+      _searchController.text = activeQuery;
       _searchController.selection = TextSelection.fromPosition(
         TextPosition(offset: _searchController.text.length),
       );
@@ -52,12 +55,15 @@ class _SearchPageState extends State<SearchPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildSearchHeader(context, searchVM),
-            if (searchVM.hasQuery) _buildFilterBar(context, searchVM),
+            _buildSearchHeader(context, searchVM, userSearchVM),
+            if (!_isPeopleTab && searchVM.hasQuery)
+              _buildFilterBar(context, searchVM),
             Expanded(
-              child: searchVM.hasQuery
-                  ? _buildSearchResults(context, searchVM)
-                  : _buildBrowseState(context, searchVM),
+              child: _isPeopleTab
+                  ? _buildPeopleResults(context, userSearchVM)
+                  : (searchVM.hasQuery
+                      ? _buildSearchResults(context, searchVM)
+                      : _buildBrowseState(context, searchVM)),
             ),
           ],
         ),
@@ -67,7 +73,15 @@ class _SearchPageState extends State<SearchPage> {
 
   // ── Header ─────────────────────────────────────────────────────────────
 
-  Widget _buildSearchHeader(BuildContext context, SearchViewModel searchVM) {
+  Widget _buildSearchHeader(
+    BuildContext context,
+    SearchViewModel searchVM,
+    UserSearchViewModel userSearchVM,
+  ) {
+    final hasQuery = _isPeopleTab
+        ? userSearchVM.hasQuery
+        : searchVM.hasQuery;
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.primary,
@@ -93,11 +107,15 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
                 const Spacer(),
-                if (searchVM.hasQuery)
+                if (hasQuery)
                   GestureDetector(
                     onTap: () {
                       _searchController.clear();
-                      searchVM.clearSearch();
+                      if (_isPeopleTab) {
+                        userSearchVM.clearSearch();
+                      } else {
+                        searchVM.clearSearch();
+                      }
                     },
                     child: const Text(
                       'Clear',
@@ -120,11 +138,25 @@ class _SearchPageState extends State<SearchPage> {
               child: TextField(
                 controller: _searchController,
                 focusNode: _searchFocusNode,
-                onChanged: (value) => searchVM.setSearchQuery(value),
-                onSubmitted: (value) => searchVM.submitSearch(),
+                onChanged: (value) {
+                  if (_isPeopleTab) {
+                    userSearchVM.setSearchQuery(value);
+                  } else {
+                    searchVM.setSearchQuery(value);
+                  }
+                },
+                onSubmitted: (value) {
+                  if (_isPeopleTab) {
+                    userSearchVM.submitSearch();
+                  } else {
+                    searchVM.submitSearch();
+                  }
+                },
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  hintText: 'Search books, gadgets...',
+                  hintText: _isPeopleTab
+                      ? 'Search people...'
+                      : 'Search books, gadgets...',
                   hintStyle: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,
@@ -134,7 +166,7 @@ class _SearchPageState extends State<SearchPage> {
                     color: AppColors.textSecondary,
                     size: 20,
                   ),
-                  suffixIcon: searchVM.hasQuery
+                  suffixIcon: hasQuery
                       ? IconButton(
                           icon: const Icon(
                             Icons.clear,
@@ -143,7 +175,11 @@ class _SearchPageState extends State<SearchPage> {
                           ),
                           onPressed: () {
                             _searchController.clear();
-                            searchVM.clearSearch();
+                            if (_isPeopleTab) {
+                              userSearchVM.clearSearch();
+                            } else {
+                              searchVM.clearSearch();
+                            }
                           },
                         )
                       : null,
@@ -152,9 +188,161 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            // Tab toggle
+            Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  _tabItem(
+                    label: 'Listings',
+                    isSelected: !_isPeopleTab,
+                    onTap: () {
+                      if (_isPeopleTab) {
+                        setState(() {
+                          _isPeopleTab = false;
+                        });
+                        userSearchVM.clearSearch();
+                        _searchController.clear();
+                      }
+                    },
+                  ),
+                  _tabItem(
+                    label: 'People',
+                    isSelected: _isPeopleTab,
+                    onTap: () {
+                      if (!_isPeopleTab) {
+                        setState(() {
+                          _isPeopleTab = true;
+                        });
+                        searchVM.clearSearch();
+                        _searchController.clear();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _tabItem({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isSelected ? const Color(0xFF800000) : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeopleResults(BuildContext context, UserSearchViewModel vm) {
+    if (vm.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (vm.errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            const SizedBox(height: 16),
+            Text(
+              vm.errorMessage!,
+              style: const TextStyle(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => vm.submitSearch(),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!vm.hasResults) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: AppColors.textSecondary.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No people found',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try a different name or email',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            '${vm.results.length} result${vm.results.length == 1 ? '' : 's'}',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            itemCount: vm.results.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) =>
+                UserSearchCard(user: vm.results[index]),
+          ),
+        ),
+      ],
     );
   }
 
