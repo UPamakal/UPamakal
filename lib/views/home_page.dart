@@ -5,6 +5,7 @@ import '../view_models/auth_view_model.dart';
 import '../view_models/chat_view_model.dart';
 import '../view_models/home_view_model.dart';
 import '../view_models/search_view_model.dart';
+import '../view_models/notification_view_model.dart';
 import '../models/user_model.dart';
 import '../models/listing_model.dart';
 import '../services/image_service.dart';
@@ -19,6 +20,7 @@ import 'search_page.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/adaptive_favorite_button.dart';
 import '../views/favorites_page.dart';
+import 'notification_page.dart';
 import 'login_page.dart';
 
 /// --------------------------------------------------------------------------
@@ -284,20 +286,51 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Notifications coming soon!'),
-                          behavior: SnackBarBehavior.floating,
-                          duration: Duration(seconds: 1),
+                  Consumer<NotificationViewModel>(
+                    builder: (context, notifVM, _) => Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.white,
+                            size: 26,
+                          ),
                         ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                      size: 26,
+                        if (notifVM.unreadCount > 0)
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: Container(
+                              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  notifVM.unreadCount > 99
+                                      ? '99+'
+                                      : '${notifVM.unreadCount}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
