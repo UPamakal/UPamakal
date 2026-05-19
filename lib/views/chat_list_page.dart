@@ -2,19 +2,61 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/chat_room_model.dart';
+import '../repositories/user_repository.dart';
 import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
 import '../utils/constants.dart';
 import 'chat_detail_page.dart';
 
-class ChatListPage extends StatelessWidget {
+class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
+
+  @override
+  State<ChatListPage> createState() => _ChatListPageState();
+}
+
+class _ChatListPageState extends State<ChatListPage> {
+  final TextEditingController _searchController = TextEditingController();
+  final UserRepository _userRepository = UserRepository();
+  final Map<String, String> _participantNames = {};
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _loadOtherParticipantName(ChatRoomModel room, String currentUserId) {
+    final otherUserId = room.getOtherParticipantId(currentUserId);
+    if (otherUserId.isEmpty || _participantNames.containsKey(otherUserId)) return;
+
+    _participantNames[otherUserId] = 'User';
+    _userRepository.getUserById(otherUserId).then((user) {
+      if (!mounted) return;
+      setState(() {
+        _participantNames[otherUserId] = user?.getDisplayIdentifier() ?? 'User';
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final chatVM = context.watch<ChatViewModel>();
     final authVM = context.watch<AuthViewModel>();
     final currentUserId = authVM.user?.uid ?? '';
+    final query = _searchController.text.trim().toLowerCase();
+    final rooms = chatVM.chatRooms.where((room) {
+      if (currentUserId.isEmpty || !room.participants.contains(currentUserId)) {
+        return false;
+      }
+
+      _loadOtherParticipantName(room, currentUserId);
+      final otherUserId = room.getOtherParticipantId(currentUserId);
+      final otherName = _participantNames[otherUserId] ?? '';
+      return query.isEmpty ||
+          room.listingTitle.toLowerCase().contains(query) ||
+          otherName.toLowerCase().contains(query);
+    }).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -48,8 +90,10 @@ class ChatListPage extends StatelessWidget {
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const TextField(
-                decoration: InputDecoration(
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
                   hintText: 'Search',
                   border: InputBorder.none,
                   icon: Icon(Icons.search, color: Colors.grey),
@@ -62,12 +106,14 @@ class ChatListPage extends StatelessWidget {
           Expanded(
             child: chatVM.isLoadingRooms
                 ? const Center(child: CircularProgressIndicator())
-                : chatVM.chatRooms.isEmpty
+                : chatVM.error != null
+                    ? _buildErrorState(chatVM.error!)
+                : rooms.isEmpty
                     ? _buildEmptyState()
                     : ListView.builder(
-                        itemCount: chatVM.chatRooms.length,
+                        itemCount: rooms.length,
                         itemBuilder: (context, index) {
-                          final room = chatVM.chatRooms[index];
+                          final room = rooms[index];
                           return _buildChatTile(context, room, currentUserId);
                         },
                       ),
@@ -102,9 +148,37 @@ class ChatListPage extends StatelessWidget {
     );
   }
 
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 72, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            const Text(
+              'Could not load conversations',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildChatTile(BuildContext context, ChatRoomModel room, String currentUserId) {
     final unreadCount = room.unreadCounts[currentUserId] ?? 0;
     final hasUnread = unreadCount > 0;
+    final otherUserId = room.getOtherParticipantId(currentUserId);
+    final otherName = _participantNames[otherUserId] ?? 'User';
 
     return ListTile(
       onTap: () {
@@ -128,7 +202,7 @@ class ChatListPage extends StatelessWidget {
         ),
       ),
       title: Text(
-        room.listingTitle,
+        otherName,
         style: TextStyle(
           fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
           fontSize: 16,
@@ -137,14 +211,25 @@ class ChatListPage extends StatelessWidget {
       subtitle: Row(
         children: [
           Expanded(
-            child: Text(
-              room.lastMessage ?? 'No messages yet',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: hasUnread ? Colors.black : Colors.grey[600],
-                fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  room.listingTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+                Text(
+                  room.lastMessage ?? 'No messages yet',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: hasUnread ? Colors.black : Colors.grey[600],
+                    fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 8),
@@ -159,11 +244,17 @@ class ChatListPage extends StatelessWidget {
       ),
       trailing: hasUnread
           ? Container(
-              width: 12,
-              height: 12,
+              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: const BoxDecoration(
-                color: Colors.blue, // Messenger blue for unread
-                shape: BoxShape.circle,
+                color: Colors.blue,
+                borderRadius: BorderRadius.all(Radius.circular(11)),
+              ),
+              child: Center(
+                child: Text(
+                  unreadCount > 99 ? '99+' : '$unreadCount',
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
               ),
             )
           : null,

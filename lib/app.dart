@@ -20,11 +20,14 @@ import 'views/profile_completion_page.dart';
 ///   4. Not first launch + not authenticated → LoginPage
 /// --------------------------------------------------------------------------
 class UpamakalApp extends StatelessWidget {
-  const UpamakalApp({super.key});
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  const UpamakalApp({super.key, this.navigatorKey});
   
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

@@ -12,6 +12,7 @@ import 'services/auth_service.dart';
 import 'services/listing_service.dart';
 import 'services/chat_service.dart';
 import 'services/fcm_service.dart';
+import 'views/chat_detail_page.dart';
 import 'repositories/user_repository.dart';
 
 void main() async {
@@ -27,6 +28,23 @@ void main() async {
   final listingService = ListingService();
   final chatService = ChatService();
   final fcmService = FCMService();
+  final navigatorKey = GlobalKey<NavigatorState>();
+
+  fcmService.setChatOpenHandler((chatRoomId) async {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+
+    final authVM = context.read<AuthViewModel>();
+    final currentUserId = authVM.user?.uid;
+    if (currentUserId == null) return;
+
+    final room = await chatService.getChatRoom(chatRoomId);
+    if (room == null || !room.participants.contains(currentUserId)) return;
+
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => ChatDetailPage(chatRoom: room)),
+    );
+  });
 
   runApp(
     MultiProvider(
@@ -52,17 +70,22 @@ void main() async {
             fcmService: fcmService,
             currentUserId: '',
           ),
-          update: (context, authVM, chatVM) => ChatViewModel(
-            chatService: chatService,
-            fcmService: fcmService,
-            currentUserId: authVM.user?.uid ?? '',
-          ),
+          update: (context, authVM, chatVM) {
+            final vm = chatVM ??
+                ChatViewModel(
+                  chatService: chatService,
+                  fcmService: fcmService,
+                  currentUserId: '',
+                );
+            vm.updateCurrentUser(authVM.user?.uid ?? '');
+            return vm;
+          },
         ),
         ChangeNotifierProvider<HomeViewModel>(
           create: (context) => HomeViewModel(listingService: listingService),
         ),
       ],
-      child: const UpamakalApp(),
+      child: UpamakalApp(navigatorKey: navigatorKey),
     ),
   );
 }

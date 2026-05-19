@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/constants.dart';
 import '../view_models/auth_view_model.dart';
+import '../view_models/chat_view_model.dart';
 import '../view_models/home_view_model.dart';
 import '../view_models/search_view_model.dart';
 import '../models/user_model.dart';
@@ -803,6 +804,7 @@ class _HomePageState extends State<HomePage> {
   }) {
     final isSelected = homeVM.selectedTabIndex == index;
     final color = isSelected ? AppColors.primary : AppColors.textSecondary;
+    final unreadCount = showBadge ? context.watch<ChatViewModel>().totalUnreadCount : 0;
 
     return GestureDetector(
       onTap: () {
@@ -836,16 +838,26 @@ class _HomePageState extends State<HomePage> {
             clipBehavior: Clip.none,
             children: [
               Icon(isSelected ? activeIcon : icon, color: color, size: 24),
-              if (showBadge)
+              if (showBadge && unreadCount > 0)
                 Positioned(
                   top: -2,
                   right: -4,
                   child: Container(
-                    width: 8,
-                    height: 8,
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: const BoxDecoration(
                       color: AppColors.primary,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),

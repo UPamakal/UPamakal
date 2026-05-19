@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/chat_room_model.dart';
 import '../models/message_model.dart';
+import '../repositories/user_repository.dart';
 import '../view_models/chat_view_model.dart';
 import '../view_models/auth_view_model.dart';
 import '../utils/constants.dart';
@@ -19,15 +20,32 @@ class ChatDetailPage extends StatefulWidget {
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final UserRepository _userRepository = UserRepository();
+  late ChatRoomModel _chatRoom;
+  String _otherParticipantName = 'User';
+  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
+    _chatRoom = widget.chatRoom;
     // Mark as read when entering the room
-    Future.microtask(() {
+    Future.microtask(() async {
       if (!mounted) return;
       final chatVM = context.read<ChatViewModel>();
-      chatVM.markAsRead(widget.chatRoom.id);
+      final authVM = context.read<AuthViewModel>();
+      final currentUserId = authVM.user?.uid ?? '';
+      if (_chatRoom.id.isNotEmpty) {
+        unawaited(chatVM.markAsRead(_chatRoom.id));
+      }
+      final otherUserId = _chatRoom.getOtherParticipantId(currentUserId);
+      if (otherUserId.isNotEmpty) {
+        final user = await _userRepository.getUserById(otherUserId);
+        if (!mounted) return;
+        setState(() {
+          _otherParticipantName = user?.getDisplayIdentifier() ?? 'User';
+        });
+      }
     });
   }
 
@@ -38,17 +56,32 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isSending) return;
 
     final chatVM = context.read<ChatViewModel>();
     final authVM = context.read<AuthViewModel>();
     final currentUserId = authVM.user?.uid ?? '';
-    final receiverId = widget.chatRoom.getOtherParticipantId(currentUserId);
+    final receiverId = _chatRoom.getOtherParticipantId(currentUserId);
 
-    chatVM.sendMessage(widget.chatRoom.id, receiverId, text);
-    _messageController.clear();
+    setState(() => _isSending = true);
+    try {
+      final savedRoom = await chatVM.sendMessageInRoom(_chatRoom, receiverId, text);
+      if (mounted && savedRoom.id != _chatRoom.id) {
+        setState(() => _chatRoom = savedRoom);
+      }
+      _messageController.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send message: $e')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
     
     // Scroll to bottom after sending
     Timer(const Duration(milliseconds: 100), () {
@@ -76,13 +109,22 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           // Messages List
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
-              stream: chatVM.getMessages(widget.chatRoom.id),
+              stream: chatVM.getMessages(_chatRoom.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
                 final messages = snapshot.data ?? [];
+
+                if (messages.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No messages yet',
+                      style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                    ),
+                  );
+                }
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -130,8 +172,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             radius: 18,
             backgroundColor: AppColors.primaryLight,
             child: Text(
-              widget.chatRoom.listingTitle.isNotEmpty 
-                  ? widget.chatRoom.listingTitle[0].toUpperCase() 
+              _chatRoom.listingTitle.isNotEmpty 
+                  ? _chatRoom.listingTitle[0].toUpperCase() 
                   : '?',
               style: const TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.bold),
             ),
@@ -142,13 +184,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.chatRoom.listingTitle,
+                  _otherParticipantName,
                   style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const Text(
-                  'Active now',
-                  style: TextStyle(color: Colors.green, fontSize: 12),
+                Text(
+                  _chatRoom.listingTitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -226,16 +269,16 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.add_circle, color: Colors.black),
-              onPressed: () {},
+              icon: const Icon(Icons.add_circle_outline, color: Colors.grey),
+              onPressed: null,
             ),
             IconButton(
-              icon: const Icon(Icons.camera_alt, color: Colors.black),
-              onPressed: () {},
+              icon: const Icon(Icons.camera_alt_outlined, color: Colors.grey),
+              onPressed: null,
             ),
             IconButton(
-              icon: const Icon(Icons.image, color: Colors.black),
-              onPressed: () {},
+              icon: const Icon(Icons.image_outlined, color: Colors.grey),
+              onPressed: null,
             ),
             Expanded(
               child: Container(
@@ -250,13 +293,25 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     hintText: 'Message...',
                     border: InputBorder.none,
                   ),
-                  onSubmitted: (_) => _sendMessage(),
+                  onSubmitted: (_) {
+                    _sendMessage();
+                  },
                 ),
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.send, color: Colors.black),
-              onPressed: _sendMessage,
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send, color: Colors.black),
+              onPressed: _isSending
+                  ? null
+                  : () {
+                      _sendMessage();
+                    },
             ),
           ],
         ),
