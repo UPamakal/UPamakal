@@ -14,6 +14,8 @@ import 'services/listing_service.dart';
 import 'services/chat_service.dart';
 import 'services/fcm_service.dart';
 import 'services/user_service.dart';
+import 'services/notification_service.dart';
+import 'view_models/notification_view_model.dart';
 import 'views/chat_detail_page.dart';
 import 'repositories/user_repository.dart';
 
@@ -67,6 +69,12 @@ void main() async {
         Provider<UserService>(
           create: (_) => UserService(),
         ),
+        Provider<NotificationService>(
+          create: (_) => NotificationService(),
+        ),
+        Provider<ChatService>(
+          create: (_) => chatService,
+        ),
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(
             authService: authService,
@@ -87,6 +95,21 @@ void main() async {
                 ChatViewModel(
                   chatService: chatService,
                   fcmService: fcmService,
+                  currentUserId: '',
+                );
+            vm.updateCurrentUser(authVM.user?.uid ?? '');
+            return vm;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthViewModel, NotificationViewModel>(
+          create: (context) => NotificationViewModel(
+            notificationService: context.read<NotificationService>(),
+            currentUserId: '',
+          ),
+          update: (context, authVM, notifVM) {
+            final vm = notifVM ??
+                NotificationViewModel(
+                  notificationService: context.read<NotificationService>(),
                   currentUserId: '',
                 );
             vm.updateCurrentUser(authVM.user?.uid ?? '');

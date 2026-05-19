@@ -255,6 +255,7 @@ class ListingService {
   Future<bool> mineListing({
     required String listingId,
     required String userId,
+    String actorName = 'Someone',
   }) async {
     final docRef = FirebaseFirestore.instance.collection('listings').doc(listingId);
     try {
@@ -274,6 +275,26 @@ class ListingService {
           'status': 'active',
           'mineTaken': true,
         });
+        final sellerId = data['sellerId'] as String? ?? '';
+        final listingTitle = data['title'] as String? ?? 'Listing';
+        if (userId != sellerId) {
+          final notifRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(sellerId)
+              .collection('notifications')
+              .doc();
+          tx.set(notifRef, {
+            'type': 'mine',
+            'title': 'Someone mined your item',
+            'body': '$actorName mined $listingTitle',
+            'listingId': listingId,
+            'listingTitle': listingTitle,
+            'senderId': userId,
+            'senderName': actorName,
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
         return true;
       });
     } catch (e) {
@@ -286,6 +307,7 @@ class ListingService {
     required String listingId,
     required String userId,
     required double amount,
+    String actorName = 'Someone',
   }) async {
     final docRef = FirebaseFirestore.instance.collection('listings').doc(listingId);
     try {
@@ -307,6 +329,45 @@ class ListingService {
           'status': 'active',
           'stealTaken': true,
         });
+        final sellerId = data['sellerId'] as String? ?? '';
+        final listingTitle = data['title'] as String? ?? 'Listing';
+        final previousOwner = data['currentOwnerId'] as String?;
+        if (userId != sellerId) {
+          final sellerNotifRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(sellerId)
+              .collection('notifications')
+              .doc();
+          tx.set(sellerNotifRef, {
+            'type': 'steal',
+            'title': 'Your item was outbid',
+            'body': '$actorName placed a higher bid on $listingTitle',
+            'listingId': listingId,
+            'listingTitle': listingTitle,
+            'senderId': userId,
+            'senderName': actorName,
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+        if (previousOwner != null && previousOwner != userId && previousOwner != sellerId) {
+          final prevNotifRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(previousOwner)
+              .collection('notifications')
+              .doc();
+          tx.set(prevNotifRef, {
+            'type': 'steal',
+            'title': 'You were outbid!',
+            'body': 'Someone placed a higher bid on $listingTitle',
+            'listingId': listingId,
+            'listingTitle': listingTitle,
+            'senderId': userId,
+            'senderName': actorName,
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
         return true;
       });
     } catch (e) {
@@ -318,6 +379,7 @@ class ListingService {
   Future<bool> grabListing({
     required String listingId,
     required String userId,
+    String actorName = 'Someone',
   }) async {
     final docRef = FirebaseFirestore.instance.collection('listings').doc(listingId);
     try {
@@ -335,6 +397,45 @@ class ListingService {
           'status': 'grabbed',
           'grabTaken': true,
         });
+        final sellerId = data['sellerId'] as String? ?? '';
+        final listingTitle = data['title'] as String? ?? 'Listing';
+        final previousOwner = data['currentOwnerId'] as String?;
+        if (userId != sellerId) {
+          final sellerNotifRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(sellerId)
+              .collection('notifications')
+              .doc();
+          tx.set(sellerNotifRef, {
+            'type': 'grab',
+            'title': 'Your item was grabbed!',
+            'body': '$actorName grabbed $listingTitle',
+            'listingId': listingId,
+            'listingTitle': listingTitle,
+            'senderId': userId,
+            'senderName': actorName,
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+        if (previousOwner != null && previousOwner != userId && previousOwner != sellerId) {
+          final prevNotifRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(previousOwner)
+              .collection('notifications')
+              .doc();
+          tx.set(prevNotifRef, {
+            'type': 'grab',
+            'title': 'Item was grabbed!',
+            'body': '$listingTitle was just grabbed by someone else',
+            'listingId': listingId,
+            'listingTitle': listingTitle,
+            'senderId': userId,
+            'senderName': actorName,
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
         return true;
       });
     } catch (e) {

@@ -62,6 +62,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   Future<void> _handleAction(String action, int amount) async {
     final authVM = Provider.of<AuthViewModel>(context, listen: false);
     final userId = authVM.user?.uid;
+    final actorName = authVM.user?.displayName ?? authVM.user?.email?.split('@').first ?? 'Someone';
     if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login to use this feature')),
@@ -95,11 +96,11 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
 
     bool success = false;
     if (action == 'mine') {
-      success = await _listingService.mineListing(listingId: widget.listing.id, userId: userId);
+      success = await _listingService.mineListing(listingId: widget.listing.id, userId: userId, actorName: actorName);
     } else if (action == 'steal') {
-      success = await _listingService.stealListing(listingId: widget.listing.id, userId: userId, amount: amount.toDouble());
+      success = await _listingService.stealListing(listingId: widget.listing.id, userId: userId, amount: amount.toDouble(), actorName: actorName);
     } else if (action == 'grab') {
-      success = await _listingService.grabListing(listingId: widget.listing.id, userId: userId);
+      success = await _listingService.grabListing(listingId: widget.listing.id, userId: userId, actorName: actorName);
     }
     if (!mounted) return;
 

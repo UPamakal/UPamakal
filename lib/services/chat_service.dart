@@ -89,6 +89,7 @@ class ChatService {
     required String senderId,
     required String receiverId,
     required String text,
+    String senderName = 'User',
   }) async {
     final trimmedText = text.trim();
     if (senderId.isEmpty || receiverId.isEmpty || trimmedText.isEmpty) {
@@ -134,6 +135,24 @@ class ChatService {
         'unreadCounts.$receiverId': FieldValue.increment(1),
       });
     }
+
+    final notifRef = _firestore
+        .collection('users')
+        .doc(receiverId)
+        .collection('notifications')
+        .doc();
+    batch.set(notifRef, {
+      'type': 'chat_message',
+      'title': senderName,
+      'body': '${room.listingTitle}: $trimmedText',
+      'listingId': room.listingId,
+      'listingTitle': room.listingTitle,
+      'chatRoomId': roomRef.id,
+      'senderId': senderId,
+      'senderName': senderName,
+      'isRead': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
 

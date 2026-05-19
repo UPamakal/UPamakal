@@ -118,8 +118,9 @@ class ChatViewModel extends ChangeNotifier {
   Future<ChatRoomModel> sendMessageInRoom(
     ChatRoomModel room,
     String receiverId,
-    String text,
-  ) async {
+    String text, {
+    String senderName = 'User',
+  }) async {
     if (text.trim().isEmpty) return room;
     if (_currentUserId.isEmpty) {
       throw StateError('You must be logged in to send a message.');
@@ -130,6 +131,7 @@ class ChatViewModel extends ChangeNotifier {
       senderId: _currentUserId,
       receiverId: receiverId,
       text: text,
+      senderName: senderName,
     );
   }
 

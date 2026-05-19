@@ -102,7 +102,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
     setState(() => _isSending = true);
     try {
-      final savedRoom = await chatVM.sendMessageInRoom(_chatRoom, receiverId, text);
+      final senderName = authVM.user?.displayName ?? authVM.user?.email?.split('@').first ?? 'User';
+      final savedRoom = await chatVM.sendMessageInRoom(_chatRoom, receiverId, text, senderName: senderName);
       if (mounted && savedRoom.id != _chatRoom.id) {
         setState(() => _chatRoom = savedRoom);
       }
