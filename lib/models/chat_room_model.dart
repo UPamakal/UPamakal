@@ -10,8 +10,12 @@ class ChatRoomModel {
   final List<String> participants;
   final String listingId;
   final String listingTitle;
+  final String buyerId;
+  final String sellerId;
+  final String chatType;
   final String? lastMessage;
   final DateTime? lastMessageTime;
+  final DateTime? createdAt;
   final Map<String, int> unreadCounts;
 
   const ChatRoomModel({
@@ -19,8 +23,12 @@ class ChatRoomModel {
     required this.participants,
     required this.listingId,
     required this.listingTitle,
+    required this.buyerId,
+    required this.sellerId,
+    this.chatType = 'listing',
     this.lastMessage,
     this.lastMessageTime,
+    this.createdAt,
     this.unreadCounts = const {},
   });
 
@@ -31,8 +39,12 @@ class ChatRoomModel {
       participants: List<String>.from(data['participants'] ?? []),
       listingId: data['listingId'] ?? '',
       listingTitle: data['listingTitle'] ?? '',
+      buyerId: data['buyerId'] ?? '',
+      sellerId: data['sellerId'] ?? '',
+      chatType: data['chatType'] ?? 'listing',
       lastMessage: data['lastMessage'],
       lastMessageTime: (data['lastMessageTime'] as Timestamp?)?.toDate(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       unreadCounts: Map<String, int>.from(data['unreadCounts'] ?? {}),
     );
   }
@@ -43,8 +55,12 @@ class ChatRoomModel {
       'participants': participants,
       'listingId': listingId,
       'listingTitle': listingTitle,
+      'buyerId': buyerId,
+      'sellerId': sellerId,
+      'chatType': chatType,
       'lastMessage': lastMessage,
       'lastMessageTime': lastMessageTime != null ? Timestamp.fromDate(lastMessageTime!) : null,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'unreadCounts': unreadCounts,
     };
   }

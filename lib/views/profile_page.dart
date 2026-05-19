@@ -334,10 +334,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     
     try {
+      final sellerUser = widget.sellerUser ?? _fetchedSellerUser;
       final room = await chatVM.startConversation(
         sellerId: _profileUserId,
-        listingId: '',
-        listingTitle: 'Chat with ${widget.sellerUser?.getDisplayIdentifier() ?? 'Seller'}',
+        listingId: 'profile:$_profileUserId',
+        listingTitle: 'Chat with ${sellerUser?.getDisplayIdentifier() ?? 'Seller'}',
+        chatType: 'profile',
       );
       
       if (mounted) {
@@ -1295,6 +1297,9 @@ class _ProfilePageState extends State<ProfilePage> {
     bool showBadge = false,
   }) {
     final color = isSelected ? AppColors.primary : AppColors.textSecondary;
+    final unreadCount = showBadge
+        ? context.watch<ChatViewModel>().totalUnreadCount
+        : 0;
 
     return GestureDetector(
       onTap: onTap,
@@ -1305,16 +1310,26 @@ class _ProfilePageState extends State<ProfilePage> {
             clipBehavior: Clip.none,
             children: [
               Icon(isSelected ? activeIcon : icon, color: color, size: 24),
-              if (showBadge)
+              if (showBadge && unreadCount > 0)
                 Positioned(
                   top: -2,
                   right: -4,
                   child: Container(
-                    width: 8,
-                    height: 8,
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: const BoxDecoration(
                       color: AppColors.primary,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),

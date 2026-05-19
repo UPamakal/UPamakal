@@ -16,7 +16,15 @@ class ChatService {
     required String sellerId,
     required String listingId,
     required String listingTitle,
+    String chatType = 'listing',
   }) async {
+    if (buyerId.isEmpty || sellerId.isEmpty) {
+      throw ArgumentError('Both buyerId and sellerId are required.');
+    }
+    if (buyerId == sellerId) {
+      throw ArgumentError('Users cannot start a chat with themselves.');
+    }
+
     // Check for existing room
     final query = await _firestore
         .collection('chat_rooms')
@@ -38,15 +46,29 @@ class ChatService {
       participants: [buyerId, sellerId],
       listingId: listingId,
       listingTitle: listingTitle,
+      buyerId: buyerId,
+      sellerId: sellerId,
+      chatType: chatType,
+      createdAt: DateTime.now(),
       unreadCounts: {buyerId: 0, sellerId: 0},
     );
 
-    await newRoomRef.set(newRoom.toFirestore());
+    await newRoomRef.set({
+      ...newRoom.toFirestore(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastMessageTime': FieldValue.serverTimestamp(),
+    });
     return newRoom;
   }
 
   /// Send a message in a chat room
   Future<void> sendMessage(MessageModel message) async {
+    if (message.chatRoomId.isEmpty ||
+        message.senderId.isEmpty ||
+        message.receiverId.isEmpty) {
+      throw ArgumentError('Message is missing required chat identifiers.');
+    }
+
     final batch = _firestore.batch();
 
     // Add message to subcollection
@@ -84,6 +106,10 @@ class ChatService {
 
   /// Listen to chat rooms for a specific user
   Stream<List<ChatRoomModel>> getChatRooms(String userId) {
+    if (userId.isEmpty) {
+      return Stream.value(<ChatRoomModel>[]);
+    }
+
     return _firestore
         .collection('chat_rooms')
         .where('participants', arrayContains: userId)
@@ -96,8 +122,33 @@ class ChatService {
 
   /// Mark messages as read in a chat room
   Future<void> markAsRead(String chatRoomId, String userId) async {
-    await _firestore.collection('chat_rooms').doc(chatRoomId).update({
+    if (chatRoomId.isEmpty || userId.isEmpty) return;
+
+    final roomRef = _firestore.collection('chat_rooms').doc(chatRoomId);
+    final unreadMessages = await roomRef
+        .collection('messages')
+        .where('receiverId', isEqualTo: userId)
+        .where('isRead', isEqualTo: false)
+        .limit(500)
+        .get();
+
+    final batch = _firestore.batch();
+    batch.update(roomRef, {
       'unreadCounts.$userId': 0,
     });
+
+    for (final doc in unreadMessages.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+
+    await batch.commit();
+  }
+
+  Future<ChatRoomModel?> getChatRoom(String chatRoomId) async {
+    if (chatRoomId.isEmpty) return null;
+
+    final doc = await _firestore.collection('chat_rooms').doc(chatRoomId).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return ChatRoomModel.fromFirestore(doc.data()!, doc.id);
   }
 }

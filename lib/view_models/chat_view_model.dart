@@ -8,7 +8,7 @@ import '../services/fcm_service.dart';
 class ChatViewModel extends ChangeNotifier {
   final ChatService _chatService;
   final FCMService _fcmService;
-  final String _currentUserId;
+  String _currentUserId;
 
   List<ChatRoomModel> _chatRooms = [];
   bool _isLoadingRooms = false;
@@ -24,8 +24,7 @@ class ChatViewModel extends ChangeNotifier {
   })  : _chatService = chatService,
         _fcmService = fcmService,
         _currentUserId = currentUserId {
-    _initializeFCM();
-    _listenToChatRooms();
+    _configureForUser(currentUserId);
   }
 
   // Getters
@@ -33,8 +32,26 @@ class ChatViewModel extends ChangeNotifier {
   bool get isLoadingRooms => _isLoadingRooms;
   String? get error => _error;
 
-  void _initializeFCM() {
-    _fcmService.initialize(_currentUserId);
+  void updateCurrentUser(String userId) {
+    if (userId == _currentUserId) return;
+    _currentUserId = userId;
+    _configureForUser(userId);
+  }
+
+  void _configureForUser(String userId) {
+    _roomsSubscription?.cancel();
+    _messagesSubscription?.cancel();
+
+    if (userId.isEmpty) {
+      _chatRooms = [];
+      _isLoadingRooms = false;
+      _error = null;
+      notifyListeners();
+      return;
+    }
+
+    _fcmService.initialize(userId);
+    _listenToChatRooms();
   }
 
   void _listenToChatRooms() {
@@ -62,18 +79,27 @@ class ChatViewModel extends ChangeNotifier {
     required String sellerId,
     required String listingId,
     required String listingTitle,
+    String chatType = 'listing',
   }) async {
+    if (_currentUserId.isEmpty) {
+      throw StateError('You must be logged in to start a conversation.');
+    }
+
     return await _chatService.getOrCreateChatRoom(
       buyerId: _currentUserId,
       sellerId: sellerId,
       listingId: listingId,
       listingTitle: listingTitle,
+      chatType: chatType,
     );
   }
 
   /// Send a message
   Future<void> sendMessage(String chatRoomId, String receiverId, String text) async {
     if (text.trim().isEmpty) return;
+    if (_currentUserId.isEmpty) {
+      throw StateError('You must be logged in to send a message.');
+    }
 
     final message = MessageModel(
       id: '', // Will be set by Firestore doc ref
@@ -94,7 +120,19 @@ class ChatViewModel extends ChangeNotifier {
 
   /// Mark room as read
   Future<void> markAsRead(String chatRoomId) async {
+    if (_currentUserId.isEmpty) return;
     await _chatService.markAsRead(chatRoomId, _currentUserId);
+  }
+
+  Future<ChatRoomModel?> getChatRoom(String chatRoomId) {
+    return _chatService.getChatRoom(chatRoomId);
+  }
+
+  int get totalUnreadCount {
+    return _chatRooms.fold<int>(
+      0,
+      (total, room) => total + (room.unreadCounts[_currentUserId] ?? 0),
+    );
   }
 
   @override
