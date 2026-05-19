@@ -9,6 +9,7 @@ class AuthViewModel extends ChangeNotifier {
 
   UserModel? _user;
   bool _isLoading = false;
+  bool _isLoadingProfileData = false;
   String? _errorMessage;
   bool _needsProfileCompletion = false;
   bool _wasProfileCompletionForced = false;
@@ -19,10 +20,16 @@ class AuthViewModel extends ChangeNotifier {
     _authService.authStateChanges.listen((user) {
       _user = user;
       _errorMessage = null;
+      
+      // FIXED: Set loading flag BEFORE notifying, so gate sees it before checking profile
+      if (user != null) {
+        _isLoadingProfileData = true;
+      }
+      
       notifyListeners();
       debugPrint("🔄 Auth state changed: ${user?.email ?? 'NULL'}");
       
-      // NEW: Automatically fetch full profile data from Firestore after auth state change
+      // Now start the async fetch
       if (user != null) {
         _loadFullProfileFromFirestore(user.uid);
       }
@@ -33,6 +40,7 @@ class AuthViewModel extends ChangeNotifier {
   UserModel? get user => _user;
   bool get isAuthenticated => _user != null;
   bool get isLoading => _isLoading;
+  bool get isLoadingProfileData => _isLoadingProfileData;
   String? get errorMessage => _errorMessage;
   bool get needsProfileCompletion => _needsProfileCompletion;
   bool get wasProfileCompletionForced => _wasProfileCompletionForced;
@@ -57,6 +65,9 @@ class AuthViewModel extends ChangeNotifier {
 
   // NEW: Load full profile data from Firestore and merge with auth user
   Future<void> _loadFullProfileFromFirestore(String uid) async {
+    _isLoadingProfileData = true;
+    notifyListeners();
+    
     try {
       final fullUser = await _userRepository.getUserById(uid);
       if (fullUser != null && _user != null) {
@@ -72,11 +83,13 @@ class AuthViewModel extends ChangeNotifier {
           profileCompletedAt: fullUser.profileCompletedAt,
         );
         debugPrint("✅ Loaded full profile for ${_user!.email}");
-        notifyListeners();
       }
     } catch (e) {
       debugPrint("⚠️ Failed to load full profile from Firestore: $e");
       // Don't treat this as a critical error - user can still use the app
+    } finally {
+      _isLoadingProfileData = false;
+      notifyListeners();
     }
   }
 
