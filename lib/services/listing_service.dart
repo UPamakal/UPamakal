@@ -59,6 +59,9 @@ class ListingService {
         minePrice: minePrice,
         stealPrice: stealPrice,
         grabPrice: grabPrice,
+        currentPrice: minePrice ?? price,
+        currentOwnerId: null,
+        status: 'available',
       );
 
       await docRef.set(listing.toFirestore());
@@ -245,6 +248,97 @@ class ListingService {
     
     if (updates.isNotEmpty) {
       await FirebaseFirestore.instance.collection('listings').doc(listingId).update(updates);
+    }
+  }
+
+  /// Attempt to claim the item (Mine). Only allowed when there is no owner and status is 'available'.
+  Future<bool> mineListing({
+    required String listingId,
+    required String userId,
+  }) async {
+    final docRef = FirebaseFirestore.instance.collection('listings').doc(listingId);
+    try {
+      return await FirebaseFirestore.instance.runTransaction<bool>((tx) async {
+        final snapshot = await tx.get(docRef);
+        if (!snapshot.exists) return false;
+        final data = snapshot.data() as Map<String, dynamic>;
+        final status = (data['status'] as String?) ?? 'available';
+        final currentOwner = data['currentOwnerId'] as String?;
+        if (currentOwner != null) return false;
+        if (status != 'available') return false;
+        final minePrice = (data['minePrice'] as num?)?.toDouble();
+        if (minePrice == null) return false;
+        tx.update(docRef, {
+          'currentPrice': minePrice,
+          'currentOwnerId': userId,
+          'status': 'active',
+          'mineTaken': true,
+        });
+        return true;
+      });
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Attempt to steal by offering a higher amount. Validates amount and ownership. Uses transaction to avoid races.
+  Future<bool> stealListing({
+    required String listingId,
+    required String userId,
+    required double amount,
+  }) async {
+    final docRef = FirebaseFirestore.instance.collection('listings').doc(listingId);
+    try {
+      return await FirebaseFirestore.instance.runTransaction<bool>((tx) async {
+        final snapshot = await tx.get(docRef);
+        if (!snapshot.exists) return false;
+        final data = snapshot.data() as Map<String, dynamic>;
+        final status = (data['status'] as String?) ?? 'available';
+        if (status == 'grabbed' || status == 'completed') return false;
+        final currentOwner = data['currentOwnerId'] as String?;
+        if (currentOwner == userId) return false; // cannot steal own
+        final currentPrice = (data['currentPrice'] as num?)?.toDouble() ?? (data['minePrice'] as num?)?.toDouble() ?? 0.0;
+        final grabPrice = (data['grabPrice'] as num?)?.toDouble();
+        if (amount <= currentPrice) return false;
+        if (grabPrice != null && amount >= grabPrice) return false;
+        tx.update(docRef, {
+          'currentPrice': amount,
+          'currentOwnerId': userId,
+          'status': 'active',
+          'stealTaken': true,
+        });
+        return true;
+      });
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Grab: immediate buyout at grabPrice. Transactional.
+  Future<bool> grabListing({
+    required String listingId,
+    required String userId,
+  }) async {
+    final docRef = FirebaseFirestore.instance.collection('listings').doc(listingId);
+    try {
+      return await FirebaseFirestore.instance.runTransaction<bool>((tx) async {
+        final snapshot = await tx.get(docRef);
+        if (!snapshot.exists) return false;
+        final data = snapshot.data() as Map<String, dynamic>;
+        final status = (data['status'] as String?) ?? 'available';
+        if (status == 'grabbed' || status == 'completed') return false;
+        final grabPrice = (data['grabPrice'] as num?)?.toDouble();
+        if (grabPrice == null) return false;
+        tx.update(docRef, {
+          'currentPrice': grabPrice,
+          'currentOwnerId': userId,
+          'status': 'grabbed',
+          'grabTaken': true,
+        });
+        return true;
+      });
+    } catch (e) {
+      return false;
     }
   }
 }
