@@ -14,7 +14,7 @@ class UserSearchCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ProfilePage(sellerUser: user),
+            builder: (_) => ProfilePage(sellerUser: user, sellerId: user.uid),
           ),
         );
       },
